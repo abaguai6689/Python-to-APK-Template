@@ -124,7 +124,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: android-keystore
-        path: craft.soul.objection.keystore
+        path: DomainName.PackageName.keystore
         retention-days: 1
 
     - name: Upload build logs
