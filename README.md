@@ -9,12 +9,13 @@ A template repository for automatically building Kivy Android APK/AAB using GitH
 ### 0. fork本仓库或使用此模板 | Fork This Repository or Use This Template
 
 ### 1. 配置项目 | Configure Project
-确保项目根目录包含 `buildozer.spec` (自行修改参数),`main.py`(无语法错误,可在python3.9正常运行)和依赖文件(使用相对路径调用,避免中文文件名)。
+确保项目根目录包含 `buildozer.spec` (自行修改参数),`main.py`(无语法错误,可在python3.9正常运行)和依赖文件(使用`相对路径`调用,避免中文文件名)。
 
 Make sure your project root contains `buildozer.spec`(changed parameters),`main.py`(can run on python3.9 without grammatical errors) and required files(calling with `relative path`).
 
 ### 2. 设置工作流程 | Setup Workflows
-本仓库提供两个工作流程：
+本仓库提供两个工作流程:
+
 This repository provides two workflows:
 
 - **`release.yml`** - 发布模式（签名AAB）
@@ -22,14 +23,14 @@ This repository provides two workflows:
 - **`debug.yml`** - 调试模式（未签名APK）
   - Debug mode (unsigned APK)
 
-手动触发构建。
+手动触发构建,流程约15分钟。
 
-Manually trigger builds.
+Manually trigger builds,it usually takes about 15 minutes.
 
 ### 3. 获取构建产物 | Get Artifacts
-构建完成后，在 Actions 页面下载：
+构建完成后,在Actions页面下载:
 
-After build completes, download from Actions page:
+After build completes,download from Actions page:
 
 - **APK/AAB 文件** - 安装包
   - APK/AAB files - install packages
