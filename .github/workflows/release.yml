@@ -15,7 +15,9 @@ env:
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    # 关键修改：强制使用 Ubuntu 22.04，这是构建 APK 最稳定的环境
+    # 避开 Ubuntu 24.04 的 Clang 兼容性问题
+    runs-on: ubuntu-22.04
     
     steps:
     - name: Checkout code
@@ -35,26 +37,30 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        # 针对 Ubuntu 24.04 的修正版依赖列表
+        # Ubuntu 22.04 完美支持 libtinfo5 和旧版库，不会报错
         sudo apt-get install -y \
             build-essential \
             git zip unzip \
             autoconf automake libtool pkg-config \
             libffi-dev libssl-dev \
-            zlib1g-dev libncurses-dev \
-            libtinfo6 cmake gettext libltdl-dev
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            libtinfo5 cmake gettext libltdl-dev
 
     - name: Install Buildozer and Cython
       run: |
-        # 锁定 Cython 版本，防止 Kivy 编译失败
+        # 锁定 Cython 版本
         pip3 install --user --upgrade "buildozer>=1.5.0" "Cython==0.29.33"
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+    - name: Clean Buildozer Cache
+      run: |
+        # 强制清理缓存，防止上次失败的编译文件残留
+        rm -rf .buildozer
+        rm -rf bin
+
     - name: Build with Buildozer
       run: |
-        # 自动接受 SDK 协议
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        # 运行构建
         buildozer android release
       env:
         BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
