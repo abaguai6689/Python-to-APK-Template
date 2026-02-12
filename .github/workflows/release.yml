@@ -35,17 +35,18 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
+        # 针对 Ubuntu 24.04 的修正版依赖列表
         sudo apt-get install -y \
             build-essential \
             git zip unzip \
             autoconf automake libtool pkg-config \
             libffi-dev libssl-dev \
-            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            zlib1g-dev libncurses-dev \
             libtinfo6 cmake gettext libltdl-dev
 
     - name: Install Buildozer and Cython
       run: |
-        # 必须锁定 Cython 版本，否则会导致 C 编译阶段报错
+        # 锁定 Cython 版本，防止 Kivy 编译失败
         pip3 install --user --upgrade "buildozer>=1.5.0" "Cython==0.29.33"
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
