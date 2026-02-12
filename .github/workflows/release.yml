@@ -10,8 +10,6 @@ env:
   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
   ANDROID_HOME: /usr/local/lib/android/sdk
   JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
-  # 关键环境变量：确保编译时能找到系统库
-  LD_LIBRARY_PATH: /usr/local/lib:$LD_LIBRARY_PATH
 
 jobs:
   build-android:
@@ -45,7 +43,7 @@ jobs:
 
     - name: Install Buildozer and Cython
       run: |
-        # 锁定 Cython 版本，这是 Kivy 构建成功的关键
+        # 强制锁定 Cython 版本，解决 Kivy 编译报错的关键
         pip3 install --user --upgrade "buildozer>=1.5.0" "Cython==0.29.33"
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
@@ -56,15 +54,16 @@ jobs:
         # 运行构建
         buildozer android release
       env:
-        # 强制指定构建架构（可选，但推荐）
         BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
 
     - name: Prepare artifacts
       run: |
-        find . -name "*.apk" -exec cp {} ./ \; 2>/dev/null || true
+        # 收集生成的 APK
+        mkdir -p output
+        find bin/ -name "*.apk" -exec cp {} ./output/ \; 2>/dev/null || true
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: kivy-release-apk
-        path: ./*.apk
+        path: ./output/*.apk
