@@ -1,6 +1,8 @@
 name: Build Kivy Android APK In Release Mode
 
 on:
+  push:
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 permissions:
@@ -39,28 +41,26 @@ jobs:
             autoconf automake libtool pkg-config \
             libffi-dev libssl-dev \
             zlib1g-dev libncurses5-dev libncursesw5-dev \
-            libtinfo5 cmake gettext libltdl-dev
+            libtinfo6 cmake gettext libltdl-dev
 
     - name: Install Buildozer and Cython
       run: |
-        # 必须锁定 Cython 0.29.33，版本过高会导致编译 C 代码失败
+        # 必须锁定 Cython 版本，否则会导致 C 编译阶段报错
         pip3 install --user --upgrade "buildozer>=1.5.0" "Cython==0.29.33"
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Build with Buildozer
       run: |
-        # 预先接受 SDK 协议
+        # 自动接受 SDK 协议
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        # 运行构建命令
+        # 运行构建
         buildozer android release
       env:
-        # 允许包名以数字开头（如果需要）
         BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
 
     - name: Prepare artifacts
       run: |
         mkdir -p output
-        # 找到生成的 APK 并移出
         find bin/ -name "*.apk" -exec cp {} ./output/ \; 2>/dev/null || true
 
     - name: Upload APK
@@ -68,4 +68,3 @@ jobs:
       with:
         name: DaveSaveEd-Release-APK
         path: ./output/*.apk
-        retention-days: 7
