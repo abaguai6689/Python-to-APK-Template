@@ -43,27 +43,29 @@ jobs:
 
     - name: Install Buildozer and Cython
       run: |
-        # 强制锁定 Cython 版本，解决 Kivy 编译报错的关键
+        # 必须锁定 Cython 0.29.33，版本过高会导致编译 C 代码失败
         pip3 install --user --upgrade "buildozer>=1.5.0" "Cython==0.29.33"
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Build with Buildozer
       run: |
-        # 自动接受 SDK 协议
+        # 预先接受 SDK 协议
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        # 运行构建
+        # 运行构建命令
         buildozer android release
       env:
+        # 允许包名以数字开头（如果需要）
         BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
 
     - name: Prepare artifacts
       run: |
-        # 收集生成的 APK
         mkdir -p output
+        # 找到生成的 APK 并移出
         find bin/ -name "*.apk" -exec cp {} ./output/ \; 2>/dev/null || true
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: kivy-release-apk
+        name: DaveSaveEd-Release-APK
         path: ./output/*.apk
+        retention-days: 7
