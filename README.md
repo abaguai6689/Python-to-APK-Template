@@ -42,3 +42,9 @@ After build completes,download from Actions page:
   - Build logs - debug information
 - **签名密钥** - 用于发布,妥善保存
   - Signing keystore - for release,keep it safe
+# DaveSaveEd Android
+
+Dave the Diver 存档修改器 Android 版
+
+## 构建状态
+- 自动构建已启用
