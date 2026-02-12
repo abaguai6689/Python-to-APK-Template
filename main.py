@@ -171,7 +171,7 @@ def encode_json_to_sav(json_string):
         last_end = end
     
     remaining_part_str = json_string[last_end:]
-    remaining_part_bytes = remaining_part_bytes.encode('utf-8')
+    remaining_part_bytes = remaining_part_str.encode('utf-8')
     output_bytes.extend(xor_bytes(remaining_part_bytes, XOR_KEY, key_start_index=key_idx))
     
     return bytes(output_bytes)
