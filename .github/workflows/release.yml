@@ -5,15 +5,13 @@ on:
 
 permissions:
   contents: write
-  actions: read
-  checks: read
 
 env:
   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
   ANDROID_HOME: /usr/local/lib/android/sdk
   JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
-  CYTHON_LANGUAGE_LEVEL: "3"
-  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.java-home=$JAVA_HOME -Dorg.gradle.jvmargs=-Xmx2048m"
+  # 关键环境变量：确保编译时能找到系统库
+  LD_LIBRARY_PATH: /usr/local/lib:$LD_LIBRARY_PATH
 
 jobs:
   build-android:
@@ -38,33 +36,35 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y \
+            build-essential \
             git zip unzip \
-            python3-pip autoconf automake libtool \
-            pkg-config zlib1g-dev libncurses5-dev \
-            libncursesw5-dev cmake libffi-dev \
-            libssl-dev gettext libltdl-dev
+            autoconf automake libtool pkg-config \
+            libffi-dev libssl-dev \
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            libtinfo5 cmake gettext libltdl-dev
 
-    - name: Install buildozer and cython
+    - name: Install Buildozer and Cython
       run: |
-        # 固定 Cython 版本以避免编译错误
+        # 锁定 Cython 版本，这是 Kivy 构建成功的关键
         pip3 install --user --upgrade "buildozer>=1.5.0" "Cython==0.29.33"
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Build with Buildozer
       run: |
-        # 预先接受 SDK 协议
+        # 自动接受 SDK 协议
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        # 开始构建
+        # 运行构建
         buildozer android release
+      env:
+        # 强制指定构建架构（可选，但推荐）
+        BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
 
     - name: Prepare artifacts
       run: |
-        # 查找生成的 APK 并移至根目录方便上传
         find . -name "*.apk" -exec cp {} ./ \; 2>/dev/null || true
 
-    - name: Upload APK artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: kivy-release-apk
         path: ./*.apk
-        retention-days: 30
