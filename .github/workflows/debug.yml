@@ -21,7 +21,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev automake
+          # 关键修改：libtinfo5 改为 libtinfo6
+          sudo apt-get install -y \
+            git zip unzip openjdk-17-jdk python3-pip \
+            autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo6 \
+            cmake libffi-dev libssl-dev automake
       
       - name: Install buildozer
         run: |
@@ -30,9 +35,8 @@ jobs:
       
       - name: Build APK
         run: |
-          buildozer android debug || true  # 即使失败也继续
+          buildozer android debug || true
       
-      # 上传所有日志，无论成功与否
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -41,9 +45,7 @@ jobs:
           path: |
             buildozer.log
             .buildozer/android/platform/build-*/build.log
-            .buildozer/android/platform/python-for-android-*/build.log
       
-      # 上传 APK（如果存在）
       - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
