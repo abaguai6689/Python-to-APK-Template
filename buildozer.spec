@@ -7,9 +7,7 @@ title = DaveSaveEd
 package.name = davesaveed
 
 # 域名 - 使用你自己的域名或反向域名格式
-# 例如：com.yourname.davesaveed
-# 如果没有域名，可以用 com.github.你的用户名.davesaveed
-package.domain = com.github.abaguai6689
+package.domain = com.github.yourusername
 
 # 工作目录
 source.dir = .
@@ -27,7 +25,6 @@ orientation = portrait
 fullscreen = 0
 
 # ============ 依赖库配置 ============
-
 # 核心依赖：python3 + kivy + android 存储支持
 # 注意：不需要 kivymd（除非你想用 Material Design 界面）
 # 添加 android 和 pyjnius 用于 Android 权限和存储访问
@@ -39,11 +36,7 @@ entrypoint = main.py
 # ============ Android 配置 ============
 
 # 权限 - 关键！必须添加存储权限才能访问存档文件
-android.permissions = 
-    INTERNET,
-    WRITE_EXTERNAL_STORAGE,
-    READ_EXTERNAL_STORAGE,
-    MANAGE_EXTERNAL_STORAGE
+android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,MANAGE_EXTERNAL_STORAGE
 
 # API 版本
 android.api = 33
@@ -72,14 +65,6 @@ android.aab = False
 
 # 架构 - 现代手机用 arm64-v8a，兼容旧手机用 armeabi-v7a
 android.arch = arm64-v8a
-
-# ============ Release 模式配置（可选） ============
-
-# 取消注释以下行用于发布模式
-# android.keystore = /path/to/your.keystore
-# android.keystore_storepass = your_password
-# android.keystore_keypass = your_password
-# android.keystore_alias = your_alias
 
 [buildozer]
 
