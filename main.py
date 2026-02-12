@@ -725,14 +725,14 @@ class MainScreen(BoxLayout):
             from android.storage import primary_external_storage_path
             storage = primary_external_storage_path()
             possible_paths = [
-                os.path.join(storage, 'Download', '修改器源码', 'jiaoben', '物品id对照表.json'),
-                os.path.join(storage, 'Download', '物品id对照表.json'),
-                os.path.join(os.path.dirname(__file__), '物品id对照表.json'),
+                os.path.join(storage, 'Download', '修改器源码', 'jiaoben', 'items_id_map.json'),
+                os.path.join(storage, 'Download', 'items_id_map.json'),
+                os.path.join(os.path.dirname(__file__), 'items_id_map.json'),
             ]
         else:
             possible_paths = [
-                os.path.join(os.path.dirname(__file__), '物品id对照表.json'),
-                '物品id对照表.json',
+                os.path.join(os.path.dirname(__file__), 'items_id_map.json'),
+                'items_id_map.json',
             ]
         
         loaded = False
