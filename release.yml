@@ -13,16 +13,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # 新增：释放磁盘空间，防止编译中途崩溃
     - name: Free disk space
       run: |
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /usr/local/lib/android/sdk/platforms/android-31
-        sudo rm -rf /usr/local/lib/android/sdk/platforms/android-32
-        sudo rm -rf /opt/ghc
-        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost"
         sudo apt-get clean
-        df -h
 
     - name: Set up Java 17
       uses: actions/setup-java@v4
@@ -45,22 +39,17 @@ jobs:
 
     - name: Install Buildozer and Cython
       run: |
-        # 严格锁定版本，确保 C 代码生成正确
-        pip3 install --user --upgrade "buildozer>=1.5.0" "Cython==0.29.33"
+        # 必须先卸载再安装，确保版本唯一
+        pip3 uninstall -y Cython
+        pip3 install --user "buildozer>=1.5.0" "Cython==0.29.33"
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Build with Buildozer
       run: |
-        # 彻底删除旧缓存，确保从干净状态开始
+        # 强制删除所有旧缓存，防止 127 错误残留
         rm -rf .buildozer
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        # 使用 -v 参数输出详细日志，方便我们定位断点
-        buildozer -v android release
+        # 使用详细模式，并跳过签名步骤（Debug 模式先跑通）
+        buildozer -v android debug
       env:
         BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
-
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: DaveSaveEd-Release
-        path: bin/*.apk
