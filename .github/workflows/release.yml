@@ -1,27 +1,23 @@
-name: Build Kivy Android APK In Release Mode
+name: Build Release AAB (Fixed)
 
 on:
-  push:
-    branches: [ "main", "master" ]
   workflow_dispatch:
-
-permissions:
-  contents: write
-
-env:
-  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-  ANDROID_HOME: /usr/local/lib/android/sdk
-  JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+  push:
+    tags:
+      - 'v*'
 
 jobs:
-  build-android:
-    # 关键修改：强制使用 Ubuntu 22.04，这是构建 APK 最稳定的环境
-    # 避开 Ubuntu 24.04 的 Clang 兼容性问题
+  build-release:
     runs-on: ubuntu-22.04
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Free disk space
+      run: |
+        sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost" /usr/local/lib/android/sdk/ndk/
+        sudo apt-get clean
 
     - name: Set up Java 17
       uses: actions/setup-java@v4
@@ -37,41 +33,195 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        # Ubuntu 22.04 完美支持 libtinfo5 和旧版库，不会报错
         sudo apt-get install -y \
             build-essential \
-            git zip unzip \
-            autoconf automake libtool pkg-config \
-            libffi-dev libssl-dev \
-            zlib1g-dev libncurses5-dev libncursesw5-dev \
-            libtinfo5 cmake gettext libltdl-dev
+            git \
+            zip \
+            unzip \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo5 \
+            cmake \
+            gettext \
+            libltdl-dev \
+            libffi-dev \
+            libssl-dev \
+            wget
 
     - name: Install Buildozer and Cython
       run: |
-        # 锁定 Cython 版本
         pip3 install --user --upgrade "buildozer>=1.5.0" "Cython==0.29.33"
         echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-    - name: Clean Buildozer Cache
-      run: |
-        # 强制清理缓存，防止上次失败的编译文件残留
-        rm -rf .buildozer
-        rm -rf bin
+    - name: Cache Buildozer dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.buildozer
+          .buildozer
+        key: ${{ runner.os }}-buildozer-release-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          ${{ runner.os }}-buildozer-
 
-    - name: Build with Buildozer
+    # ============ 关键步骤：下载中文字体 ============
+    - name: Download Chinese Font
       run: |
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        buildozer android release
+        echo "Downloading Chinese font..."
+        mkdir -p fonts
+        
+        # 下载 Source Han Sans CN Regular (思源黑体)
+        FONT_URL="https://github.com/adobe-fonts/source-han-sans/releases/download/2.004R/SourceHanSansCN.zip"
+        
+        # 下载字体文件
+        wget -q --timeout=60 "$FONT_URL" -O /tmp/source_han_sans.zip || {
+          echo "Failed to download from primary URL, trying alternative..."
+          # 备用下载源
+          wget -q --timeout=60 "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf" -O fonts/NotoSansCJK-Regular.otf || {
+            echo "Alternative download also failed"
+          }
+        }
+        
+        # 如果下载了zip文件，解压它
+        if [ -f /tmp/source_han_sans.zip ]; then
+          unzip -q /tmp/source_han_sans.zip -d /tmp/source_han_sans/ || true
+          
+          # 查找并复制字体文件
+          find /tmp/source_han_sans/ -name "*.otf" -o -name "*.ttf" | head -5 | while read font_file; do
+            cp "$font_file" fonts/
+            echo "Copied: $font_file"
+          done
+          
+          rm -rf /tmp/source_han_sans.zip /tmp/source_han_sans/
+        fi
+        
+        # 检查字体文件
+        echo "Font files in fonts directory:"
+        ls -la fonts/ || echo "No fonts directory"
+        
+        # 如果字体目录为空，尝试下载 Google Noto 字体作为备用
+        if [ ! "$(ls -A fonts/ 2>/dev/null)" ]; then
+          echo "Downloading fallback font (Noto Sans CJK)..."
+          wget -q --timeout=60 "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf" -O fonts/NotoSansCJK-Regular.otf || {
+            echo "Failed to download fallback font"
+          }
+        fi
+        
+        # 最终检查
+        echo "Final font files:"
+        ls -la fonts/ || echo "Still no fonts!"
+
+    - name: Verify font files
+      run: |
+        echo "=== Verifying font files ==="
+        if [ -d "fonts" ] && [ "$(ls -A fonts/ 2>/dev/null)" ]; then
+          echo "✓ Font files found:"
+          ls -la fonts/
+          
+          # 验证字体文件大小（确保不是空文件）
+          for font in fonts/*; do
+            size=$(stat -f%z "$font" 2>/dev/null || stat -c%s "$font" 2>/dev/null || echo "0")
+            echo "  $font: $size bytes"
+            if [ "$size" -lt 1000 ]; then
+              echo "  ⚠ Warning: Font file seems too small!"
+            fi
+          done
+        else
+          echo "✗ No font files found! Build may have Chinese display issues."
+          # 创建空目录避免构建失败
+          mkdir -p fonts
+        fi
+        echo "=== Verification complete ==="
+
+    - name: Generate signing keystore (if not exists)
+      run: |
+        if [ ! -f release.keystore ]; then
+          keytool -genkey -v \
+            -keystore release.keystore \
+            -alias davesaveed \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass davesaveed \
+            -keypass davesaveed \
+            -dname "CN=DaveSaveEd, OU=App, O=Abaguai, L=Unknown, ST=Unknown, C=CN"
+          echo "Keystore created. Please replace with your own for production!"
+        fi
+
+    - name: Build Release AAB
+      run: |
+        mkdir -p bin
+        
+        # 接受Android SDK许可证
+        if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        fi
+        
+        # 构建发布版本
+        buildozer -v android release
       env:
         BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
+        BUILDOZER_RELEASE_KEYSTORE: release.keystore
+        BUILDOZER_RELEASE_KEYSTORE_PASSWORD: davesaveed
+        BUILDOZER_RELEASE_KEYALIAS: davesaveed
+        BUILDOZER_RELEASE_KEYALIAS_PASSWORD: davesaveed
+      timeout-minutes: 60
 
-    - name: Prepare artifacts
+    - name: Verify AAB contents
       run: |
-        mkdir -p output
-        find bin/ -name "*.apk" -exec cp {} ./output/ \; 2>/dev/null || true
+        echo "=== Verifying AAB contents ==="
+        AAB_FILE=$(find bin -name "*.aab" | head -1)
+        if [ -n "$AAB_FILE" ]; then
+          echo "AAB file: $AAB_FILE"
+          
+          # 检查AAB中是否包含字体文件
+          unzip -l "$AAB_FILE" | grep -i font || echo "No font files found in AAB!"
+          
+          # 检查AAB中是否包含font_utils.py
+          unzip -l "$AAB_FILE" | grep font_utils || echo "font_utils.py not found in AAB!"
+        else
+          echo "No AAB file found!"
+        fi
+        echo "=== Verification complete ==="
 
-    - name: Upload APK
+    - name: Upload AAB artifact
+      if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: DaveSaveEd-Release-APK
-        path: ./output/*.apk
+        name: app-release-aab
+        path: bin/*.aab
+        retention-days: 30
+
+    - name: Upload keystore
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: signing-keystore
+        path: release.keystore
+        retention-days: 90
+
+    - name: Upload build logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs-release
+        path: |
+          buildozer.log
+          .buildozer/android/platform/build-*/build.log
+        retention-days: 7
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          bin/*.aab
+          bin/*.apk
+        draft: true
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

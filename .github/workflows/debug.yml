@@ -1,4 +1,4 @@
-name: Build Kivy Android APK
+name: Build Kivy Android APK (Fixed)
 
 on:
   push:
@@ -59,7 +59,8 @@ jobs:
             gettext \
             libltdl-dev \
             libffi-dev \
-            libssl-dev
+            libssl-dev \
+            wget
 
     - name: Install Buildozer and Cython
       run: |
@@ -76,92 +77,80 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-buildozer-
 
-    - name: Check fonts directory
+    # ============ 关键步骤：下载中文字体 ============
+    - name: Download Chinese Font
       run: |
-        echo "Checking fonts directory..."
-        ls -la fonts/ 2>/dev/null || echo "WARNING: fonts/ directory not found!"
-        find . -name "*.ttf" -o -name "*.otf" -o -name "*.ttc" | head -20
-
-    - name: Inject font preload and crash handler into main.py
-      run: |
-        # 创建字体预加载代码（必须放在最前面，在Kivy导入之前）
-        cat > font_preload.py << 'FONTEOF'
-# ========== 字体预加载（必须在Kivy组件导入之前）==========
-import os
-import sys
-
-print(f"[FONT] Starting font preload...")
-print(f"[FONT] Current file: {__file__}")
-print(f"[FONT] Current dir: {os.path.dirname(__file__)}")
-
-# 先尝试导入并设置字体
-try:
-    from kivy.utils import platform
-    from kivy.core.text import LabelBase
-    
-    font_paths = [
-        os.path.join(os.path.dirname(__file__), 'fonts', 'SourceHanSansCN-Regular.otf'),
-        os.path.join(os.path.dirname(__file__), 'fonts', 'NotoSansCJK-Regular.ttc'),
-        os.path.join(os.path.dirname(__file__), 'fonts', 'DroidSansFallback.ttf'),
-        os.path.join(os.path.dirname(__file__), 'fonts', 'msyh.ttf'),
-        os.path.join(os.path.dirname(__file__), 'fonts', 'simhei.ttf'),
-        'fonts/SourceHanSansCN-Regular.otf',
-        'fonts/NotoSansCJK-Regular.ttc',
-        'fonts/DroidSansFallback.ttf',
-        'fonts/msyh.ttf',
-        'fonts/simhei.ttf',
-    ]
-    
-    font_loaded = False
-    for font_path in font_paths:
-        exists = os.path.exists(font_path)
-        print(f"[FONT] Checking: {font_path} -> {exists}")
-        if exists and not font_loaded:
-            try:
-                LabelBase.register('ChineseFont', font_path)
-                import kivy.core.text
-                kivy.core.text.DEFAULT_FONT = 'ChineseFont'
-                print(f"[FONT] SUCCESS: Loaded {font_path}")
-                font_loaded = True
-                break
-            except Exception as e:
-                print(f"[FONT] ERROR loading {font_path}: {e}")
-                continue
-    
-    # 尝试系统字体作为后备
-    if not font_loaded and platform == 'android':
-        print("[FONT] Trying system fonts...")
-        system_fonts = [
-            '/system/fonts/NotoSansCJK-Regular.ttc',
-            '/system/fonts/DroidSansFallbackFull.ttf',
-            '/system/fonts/NotoSansSC-Regular.otf',
-        ]
-        for sys_font in system_fonts:
-            if os.path.exists(sys_font):
-                try:
-                    LabelBase.register('ChineseFont', sys_font)
-                    import kivy.core.text
-                    kivy.core.text.DEFAULT_FONT = 'ChineseFont'
-                    print(f"[FONT] SUCCESS: Loaded system font {sys_font}")
-                    font_loaded = True
-                    break
-                except Exception as e:
-                    print(f"[FONT] ERROR loading system font {sys ERROR loading system font {sys_font}: {e}")
-                    continue
-    
-    if not font_loaded:
-        print("[FONT] WARNING: No Chinese font loaded! UI will show squares.")
+        echo "Downloading Chinese font..."
+        mkdir -p fonts
         
-except Exception as e:
-    print(f"[FONT] FATAL ERROR in font preload: {e}")
-    import traceback
-    traceback.print_exc()
+        # 下载 Source Han Sans CN Regular (思源黑体)
+        FONT_URL="https://github.com/adobe-fonts/source-han-sans/releases/download/2.004R/SourceHanSansCN.zip"
+        
+        # 下载字体文件
+        wget -q --timeout=60 "$FONT_URL" -O /tmp/source_han_sans.zip || {
+          echo "Failed to download from primary URL, trying alternative..."
+          # 备用下载源
+          wget -q --timeout=60 "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf" -O fonts/NotoSansCJK-Regular.otf || {
+            echo "Alternative download also failed"
+          }
+        }
+        
+        # 如果下载了zip文件，解压它
+        if [ -f /tmp/source_han_sans.zip ]; then
+          unzip -q /tmp/source_han_sans.zip -d /tmp/source_han_sans/ || true
+          
+          # 查找并复制字体文件
+          find /tmp/source_han_sans/ -name "*.otf" -o -name "*.ttf" | head -5 | while read font_file; do
+            cp "$font_file" fonts/
+            echo "Copied: $font_file"
+          done
+          
+          rm -rf /tmp/source_han_sans.zip /tmp/source_han_sans/
+        fi
+        
+        # 检查字体文件
+        echo "Font files in fonts directory:"
+        ls -la fonts/ || echo "No fonts directory"
+        
+        # 如果字体目录为空，尝试下载 Google Noto 字体作为备用
+        if [ ! "$(ls -A fonts/ 2>/dev/null)" ]; then
+          echo "Downloading fallback font (Noto Sans CJK)..."
+          wget -q --timeout=60 "https://github.com/notofonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf" -O fonts/NotoSansCJK-Regular.otf || {
+            echo "Failed to download fallback font"
+          }
+        fi
+        
+        # 最终检查
+        echo "Final font files:"
+        ls -la fonts/ || echo "Still no fonts!"
 
-FONTEOF
+    - name: Verify font files
+      run: |
+        echo "=== Verifying font files ==="
+        if [ -d "fonts" ] && [ "$(ls -A fonts/ 2>/dev/null)" ]; then
+          echo "✓ Font files found:"
+          ls -la fonts/
+          
+          # 验证字体文件大小（确保不是空文件）
+          for font in fonts/*; do
+            size=$(stat -f%z "$font" 2>/dev/null || stat -c%s "$font" 2>/dev/null || echo "0")
+            echo "  $font: $size bytes"
+            if [ "$size" -lt 1000 ]; then
+              echo "  ⚠ Warning: Font file seems too small!"
+            fi
+          done
+        else
+          echo "✗ No font files found! Build may have Chinese display issues."
+          # 创建空目录避免构建失败
+          mkdir -p fonts
+        fi
+        echo "=== Verification complete ==="
 
-        # 创建崩溃处理器
-        cat > crash_handler.py << 'CRASHEOF'
-# ========== 崩溃日志捕获器 ==========
+    - name: Inject crash handler into main.py
+      run: |
+        # 在 main.py 开头注入异常捕获代码
+        cat > crash_handler.py << 'EOF'
+# 自动注入的崩溃日志捕获器
 import os
 import sys
 import traceback
@@ -186,16 +175,18 @@ def handle_exception(exc_type, exc_value, exc_traceback):
             f.write(f"Time: {timestamp}\n")
             f.write(f"{'='*50}\n")
             f.write(error_msg)
-        print(f"[CRASH] Log saved to: {log_file}")
+        print(f"Crash log saved to: {log_file}")
     except Exception as e:
-        print(f"[CRASH] Failed to save crash log: {e}")
+        print(f"Failed to save crash log: {e}")
     
+    # 同时打印到控制台
     sys.__excepthook__(exc_type, exc_value, exc_traceback)
 
 sys.excepthook = handle_exception
 
 # Kivy 特定的异常捕获
 try:
+    import kivy
     from kivy.base import ExceptionHandler, ExceptionManager
     
     class KivyCrashHandler(ExceptionHandler):
@@ -204,27 +195,15 @@ try:
             return ExceptionManager.PASS
     
     ExceptionManager.add_handler(KivyCrashHandler())
-    print("[CRASH] Kivy crash handler installed")
 except ImportError:
-    print("[CRASH] Kivy not available for crash handler")
-
-CRASHEOF
-
-        # 备份原 main.py
-        cp main.py main.py.backup
+    pass
+EOF
         
-        # 移除原 main.py 中的字体加载代码（避免重复）
-        grep -v "def load_chinese_font\|preload_chinese_font\|LabelBase.register('ChineseFont'\|kivy.core.text.DEFAULT_FONT = 'ChineseFont'" main.py > main_clean.py 2>/dev/null || cp main.py main_clean.py
-        
-        # 按顺序注入：字体预加载 -> 崩溃处理 -> 原main.py
-        cat font_preload.py crash_handler.py main_clean.py > main.py
-        
-        # 清理临时文件
-        rm -f main_clean.py font_preload.py crash_handler.py
-        
-        echo "Font preload and crash handler injected into main.py"
-        echo "=== First 50 lines of new main.py ==="
-        head -50 main.py
+        # 将崩溃处理器插入到 main.py 开头
+        if [ -f main.py ]; then
+          cat crash_handler.py main.py > main_temp.py && mv main_temp.py main.py
+          echo "Crash handler injected into main.py"
+        fi
 
     - name: Build APK with Buildozer
       run: |
@@ -242,6 +221,23 @@ CRASHEOF
         BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
       timeout-minutes: 60
 
+    - name: Verify APK contents
+      run: |
+        echo "=== Verifying APK contents ==="
+        APK_FILE=$(find bin -name "*.apk" | head -1)
+        if [ -n "$APK_FILE" ]; then
+          echo "APK file: $APK_FILE"
+          
+          # 检查APK中是否包含字体文件
+          unzip -l "$APK_FILE" | grep -i font || echo "No font files found in APK!"
+          
+          # 检查APK中是否包含font_utils.py
+          unzip -l "$APK_FILE" | grep font_utils || echo "font_utils.py not found in APK!"
+        else
+          echo "No APK file found!"
+        fi
+        echo "=== Verification complete ==="
+
     - name: Upload APK artifact
       if: success()
       uses: actions/upload-artifact@v4
@@ -258,12 +254,14 @@ CRASHEOF
         path: |
           buildozer.log
           .buildozer/android/platform/build-*/build.log
+          .buildozer/android/platform/build-*/build/bootstrap_builds/sdl2/app/build/outputs/logs/
         retention-days: 7
         if-no-files-found: warn
 
-    - name: Create crash log README
+    - name: Create crash log directory marker
       if: success()
       run: |
+        # 创建一个说明文件，告诉用户如何获取崩溃日志
         cat > CRASH_LOG_README.txt << 'EOF'
 DaveSaveEd 崩溃日志收集说明
 =============================
@@ -292,6 +290,7 @@ DaveSaveEd 崩溃日志收集说明
 - 依赖库缺失：检查 buildozer.spec 中的 requirements
 
 EOF
+        # 将说明文件打包到 APK 同目录
         cp CRASH_LOG_README.txt bin/
 
     - name: Upload crash log helper
@@ -299,7 +298,8 @@ EOF
       uses: actions/upload-artifact@v4
       with:
         name: crash-log-instructions
-        path: CRASH_LOG_README.txt
+        path: |
+          CRASH_LOG_README.txt
         retention-days: 30
 
     - name: Check for common build issues
@@ -307,16 +307,19 @@ EOF
       run: |
         echo "构建失败，检查常见问题..."
         
+        # 检查 NDK 版本问题
         if grep -q "NDK" buildozer.log 2>/dev/null; then
-          echo "::warning::检测到 NDK 相关问题"
+          echo "::warning::检测到 NDK 相关问题，请检查 buildozer.spec 中的 android.ndk 配置"
         fi
         
+        # 检查 Python 依赖问题
         if grep -q "No module named" buildozer.log 2>/dev/null; then
-          echo "::warning::检测到 Python 模块缺失"
+          echo "::warning::检测到 Python 模块缺失，请检查 buildozer.spec 中的 requirements"
         fi
         
+        # 检查权限问题
         if grep -q "permission" buildozer.log 2>/dev/null; then
-          echo "::warning::检测到权限相关问题"
+          echo "::warning::检测到权限相关问题，请检查 AndroidManifest.xml 或 buildozer.spec 中的 android.permissions"
         fi
         
         exit 1
