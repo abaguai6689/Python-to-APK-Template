@@ -78,58 +78,53 @@ jobs:
 
     - name: Inject crash handler into main.py
       run: |
-        # 在 main.py 开头注入异常捕获代码
-        cat > crash_handler.py << 'EOF'
-# 自动注入的崩溃日志捕获器
-import os
-import sys
-import traceback
-from datetime import datetime
-
-CRASH_LOG_DIR = '/sdcard/DaveSaveEd/crashes' if os.path.exists('/sdcard') else os.path.expanduser('~')
-
-def handle_exception(exc_type, exc_value, exc_traceback):
-    """全局异常处理"""
-    if issubclass(exc_type, KeyboardInterrupt):
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
-        return
-    
-    error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    try:
-        os.makedirs(CRASH_LOG_DIR, exist_ok=True)
-        log_file = os.path.join(CRASH_LOG_DIR, f'crash_{timestamp}.log')
-        with open(log_file, 'w', encoding='utf-8') as f:
-            f.write(f"DaveSaveEd Crash Log\n")
-            f.write(f"Time: {timestamp}\n")
-            f.write(f"{'='*50}\n")
-            f.write(error_msg)
-        print(f"Crash log saved to: {log_file}")
-    except Exception as e:
-        print(f"Failed to save crash log: {e}")
-    
-    # 同时打印到控制台
-    sys.__excepthook__(exc_type, exc_value, exc_traceback)
-
-sys.excepthook = handle_exception
-
-# Kivy 特定的异常捕获
-try:
-    import kivy
-    from kivy.base import ExceptionHandler, ExceptionManager
-    
-    class KivyCrashHandler(ExceptionHandler):
-        def handle_exception(self, inst):
-            handle_exception(type(inst), inst, inst.__traceback__)
-            return ExceptionManager.PASS
-    
-    ExceptionManager.add_handler(KivyCrashHandler())
-except ImportError:
-    pass
-EOF
+        cat > crash_handler.py << 'ENDOFFILE'
+        # 自动注入的崩溃日志捕获器
+        import os
+        import sys
+        import traceback
+        from datetime import datetime
         
-        # 将崩溃处理器插入到 main.py 开头
+        CRASH_LOG_DIR = '/sdcard/DaveSaveEd/crashes' if os.path.exists('/sdcard') else os.path.expanduser('~')
+        
+        def handle_exception(exc_type, exc_value, exc_traceback):
+            if issubclass(exc_type, KeyboardInterrupt):
+                sys.__excepthook__(exc_type, exc_value, exc_traceback)
+                return
+            
+            error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            try:
+                os.makedirs(CRASH_LOG_DIR, exist_ok=True)
+                log_file = os.path.join(CRASH_LOG_DIR, f'crash_{timestamp}.log')
+                with open(log_file, 'w', encoding='utf-8') as f:
+                    f.write(f"DaveSaveEd Crash Log\n")
+                    f.write(f"Time: {timestamp}\n")
+                    f.write(f"{'='*50}\n")
+                    f.write(error_msg)
+                print(f"Crash log saved to: {log_file}")
+            except Exception as e:
+                print(f"Failed to save crash log: {e}")
+            
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        
+        sys.excepthook = handle_exception
+        
+        try:
+            import kivy
+            from kivy.base import ExceptionHandler, ExceptionManager
+            
+            class KivyCrashHandler(ExceptionHandler):
+                def handle_exception(self, inst):
+                    handle_exception(type(inst), inst, inst.__traceback__)
+                    return ExceptionManager.PASS
+            
+            ExceptionManager.add_handler(KivyCrashHandler())
+        except ImportError:
+            pass
+        ENDOFFILE
+        
         if [ -f main.py ]; then
           cat crash_handler.py main.py > main_temp.py && mv main_temp.py main.py
           echo "Crash handler injected into main.py"
@@ -137,15 +132,12 @@ EOF
 
     - name: Build APK with Buildozer
       run: |
-        # 确保目录存在
         mkdir -p bin
         
-        # 接受Android SDK许可证
         if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
         fi
         
-        # 构建APK
         buildozer -v android debug
       env:
         BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
@@ -159,7 +151,7 @@ EOF
         path: bin/*.apk
         retention-days: 30
 
-    - name: Upload build logs (always)
+    - name: Upload build logs
       if: always()
       uses: actions/upload-artifact@v4
       with:
@@ -167,43 +159,32 @@ EOF
         path: |
           buildozer.log
           .buildozer/android/platform/build-*/build.log
-          .buildozer/android/platform/build-*/build/bootstrap_builds/sdl2/app/build/outputs/logs/
         retention-days: 7
         if-no-files-found: warn
 
-    - name: Create crash log directory marker
+    - name: Create crash log README
       if: success()
       run: |
-        # 创建一个说明文件，告诉用户如何获取崩溃日志
-        cat > CRASH_LOG_README.txt << 'EOF'
-DaveSaveEd 崩溃日志收集说明
-=============================
-
-如果应用闪退，请按以下步骤获取日志：
-
-方法一：通过 USB 调试（需要电脑）
-1. 手机开启开发者选项和 USB 调试
-2. 连接电脑，运行命令：
-   adb logcat -d > crash_log.txt
-3. 在 logcat 中搜索 "Python" 或 "DaveSaveEd" 相关错误
-
-方法二：检查本地日志文件（如果应用有写入权限）
-1. 打开手机文件管理器
-2. 进入 /sdcard/DaveSaveEd/crashes/ 目录
-3. 查找 crash_*.log 文件
-
-方法三：使用第三方日志应用
-1. 安装 "Logcat Reader" 或类似应用
-2. 授予 ROOT 权限（如果需要）
-3. 过滤关键词 "python"、"kivy" 或 "DaveSaveEd"
-
-常见闪退原因：
-- 缺少存储权限：请手动授予"所有文件访问权限"
-- Android 版本不兼容：Android 11+ 需要特殊权限处理
-- 依赖库缺失：检查 buildozer.spec 中的 requirements
-
-EOF
-        # 将说明文件打包到 APK 同目录
+        cat > CRASH_LOG_README.txt << 'ENDOFFILE'
+        DaveSaveEd 崩溃日志收集说明
+        =============================
+        
+        如果应用闪退，请按以下步骤获取日志：
+        
+        方法一：通过 USB 调试（需要电脑）
+        1. 手机开启开发者选项和 USB 调试
+        2. 连接电脑，运行命令：adb logcat -d > crash_log.txt
+        3. 在 logcat 中搜索 "Python" 或 "DaveSaveEd" 相关错误
+        
+        方法二：检查本地日志文件
+        1. 打开手机文件管理器
+        2. 进入 /sdcard/DaveSaveEd/crashes/ 目录
+        3. 查找 crash_*.log 文件
+        
+        常见闪退原因：
+        - 缺少存储权限：请手动授予"所有文件访问权限"
+        - Android 11+ 需要特殊权限处理
+        ENDOFFILE
         cp CRASH_LOG_README.txt bin/
 
     - name: Upload crash log helper
@@ -211,28 +192,5 @@ EOF
       uses: actions/upload-artifact@v4
       with:
         name: crash-log-instructions
-        path: |
-          CRASH_LOG_README.txt
+        path: CRASH_LOG_README.txt
         retention-days: 30
-
-    - name: Check for common build issues
-      if: failure()
-      run: |
-        echo "构建失败，检查常见问题..."
-        
-        # 检查 NDK 版本问题
-        if grep -q "NDK" buildozer.log 2>/dev/null; then
-          echo "::warning::检测到 NDK 相关问题，请检查 buildozer.spec 中的 android.ndk 配置"
-        fi
-        
-        # 检查 Python 依赖问题
-        if grep -q "No module named" buildozer.log 2>/dev/null; then
-          echo "::warning::检测到 Python 模块缺失，请检查 buildozer.spec 中的 requirements"
-        fi
-        
-        # 检查权限问题
-        if grep -q "permission" buildozer.log 2>/dev/null; then
-          echo "::warning::检测到权限相关问题，请检查 AndroidManifest.xml 或 buildozer.spec 中的 android.permissions"
-        fi
-        
-        exit 1
