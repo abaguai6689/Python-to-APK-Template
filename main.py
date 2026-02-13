@@ -35,12 +35,6 @@ from kivy.properties import StringProperty, ObjectProperty
 from kivy.clock import Clock
 from kivy.utils import platform
 
-# Android 特定导入
-if platform == 'android':
-    from android.permissions import request_permissions, Permission, check_permission
-    from android.storage import primary_external_storage_path
-    from jnius import autoclass
-
 # ============ 配置常量 ============
 XOR_KEY = b"GameData"
 BYPASS_PREFIX = "BYPASSED_HEX::"
@@ -67,6 +61,8 @@ ICONS = {
     'star': '⭐', 'arrow': '➜', 'heart': '❤️', 'wave': '🌊',
     'diver': '🤿', 'shark': '🦈', 'octopus': '🐙', 'crab': '🦀'
 }
+
+
 def xor_bytes(data_bytes, key_bytes, key_start_index=0):
     """执行XOR加密/解密"""
     key_len = len(key_bytes)
@@ -175,6 +171,8 @@ def encode_json_to_sav(json_string):
     output_bytes.extend(xor_bytes(remaining_part_bytes, XOR_KEY, key_start_index=key_idx))
     
     return bytes(output_bytes)
+
+
 class ItemDatabase:
     """物品数据库类"""
     
@@ -215,6 +213,8 @@ class ItemDatabase:
     def get_name(self, item_id):
         """获取物品名称"""
         return self.items.get(item_id, f"未知物品({item_id})")
+
+
 class DaveSaveEditor:
     """存档编辑器主类"""
     
@@ -337,6 +337,7 @@ class DaveSaveEditor:
         value = min(value, SAVE_MAX_FOLLOWER)
         self.save_data["SNSInfo"]["m_Follow_Count"] = value
         return True
+    
     def list_ingredients(self):
         """列出当前所有食材"""
         if not self.save_data or "Ingredients" not in self.save_data:
@@ -429,6 +430,8 @@ class DaveSaveEditor:
             self.save_data["Ingredients"][ingredient_key]["count"] = value
             return True
         return False
+
+
 class FileChooserPopup(Popup):
     """文件选择弹窗"""
     
@@ -442,6 +445,7 @@ class FileChooserPopup(Popup):
         
         # 获取存储路径
         if platform == 'android':
+            # 延迟导入，避免在类定义时导入
             from android.storage import primary_external_storage_path
             initial_path = primary_external_storage_path()
         else:
@@ -473,6 +477,8 @@ class FileChooserPopup(Popup):
         if self.filechooser.selection:
             self.callback(self.filechooser.selection[0])
             self.dismiss()
+
+
 class MessagePopup(Popup):
     """消息提示弹窗"""
     
@@ -542,6 +548,8 @@ class NumberInputPopup(Popup):
             self.dismiss()
         except ValueError:
             pass
+
+
 class SearchPopup(Popup):
     """搜索物品弹窗"""
     
@@ -636,6 +644,8 @@ class SearchPopup(Popup):
         )
         popup.open()
         self.dismiss()
+
+
 class MainScreen(BoxLayout):
     """主界面"""
     
@@ -646,10 +656,6 @@ class MainScreen(BoxLayout):
         self.spacing = 10
         
         self.editor = DaveSaveEditor()
-        
-        # 请求权限（Android）
-        if platform == 'android':
-            self.request_android_permissions()
         
         # 加载物品数据库
         self.load_item_database()
@@ -707,21 +713,13 @@ class MainScreen(BoxLayout):
         )
         self.add_widget(self.log_label)
     
-    def request_android_permissions(self):
-        """请求Android权限"""
-        if platform == 'android':
-            request_permissions([
-                Permission.READ_EXTERNAL_STORAGE,
-                Permission.WRITE_EXTERNAL_STORAGE,
-                Permission.MANAGE_EXTERNAL_STORAGE
-            ])
-    
     def load_item_database(self):
         """加载物品数据库"""
         # 尝试多个可能的路径
         possible_paths = []
         
         if platform == 'android':
+            # 延迟导入
             from android.storage import primary_external_storage_path
             storage = primary_external_storage_path()
             possible_paths = [
@@ -755,6 +753,7 @@ class MainScreen(BoxLayout):
         """显示消息弹窗"""
         popup = MessagePopup(title, message)
         popup.open()
+    
     def create_file_tab(self):
         """创建存档管理标签"""
         layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
@@ -872,6 +871,7 @@ class MainScreen(BoxLayout):
         ))
         
         return layout
+    
     def show_file_chooser(self, instance):
         """显示文件选择器"""
         def on_select(path):
@@ -1040,11 +1040,27 @@ class MainScreen(BoxLayout):
             self.log(f'JSON导出成功')
         except Exception as e:
             self.show_message('错误', f'导出失败: {str(e)}')
+
+
 class DaveSaveEdApp(App):
     """Kivy应用主类"""
     
     def build(self):
+        # 延迟导入 Android 库，防止启动闪退
+        if platform == 'android':
+            try:
+                from android.permissions import request_permissions, Permission
+                # 申请存储权限
+                permissions = [
+                    Permission.READ_EXTERNAL_STORAGE,
+                    Permission.WRITE_EXTERNAL_STORAGE,
+                ]
+                request_permissions(permissions)
+            except ImportError:
+                pass
+        
         Window.clearcolor = (0.12, 0.14, 0.18, 1)  # 深色背景
+        self.title = 'Dave the Diver 存档修改器'
         return MainScreen()
 
 
