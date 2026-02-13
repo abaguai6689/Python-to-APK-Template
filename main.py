@@ -1,5 +1,44 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+# ========== 崩溃日志捕获器（必须在最前面）==========
+import sys
+import os
+import traceback
+from datetime import datetime
+
+def setup_crash_handler():
+    """设置全局异常捕获"""
+    crash_dir = os.path.join(os.path.expanduser('~'), 'DaveSaveEd_crashes')
+    if os.path.exists('/sdcard'):
+        crash_dir = '/sdcard/DaveSaveEd/crashes'
+    
+    os.makedirs(crash_dir, exist_ok=True)
+    
+    def handle_exception(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        
+        error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        try:
+            log_file = os.path.join(crash_dir, f'crash_{timestamp}.log')
+            with open(log_file, 'w', encoding='utf-8') as f:
+                f.write(f"DaveSaveEd Crash Log\nTime: {timestamp}\n{'='*50}\n{error_msg}")
+            print(f"[CRASH] Log saved: {log_file}")
+        except Exception as e:
+            print(f"[CRASH] Failed to save log: {e}")
+        
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+    
+    sys.excepthook = handle_exception
+
+setup_crash_handler()
+# ========== 崩溃捕获器结束 ==========
+
+# 原有导入...
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
