@@ -8,7 +8,41 @@
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
+# --- 在 main.py 的开头位置导入 ---
+from kivy.core.text import LabelBase
+import kivy.core.text
 
+def setup_fonts():
+    """配置全局中文字体"""
+    # 这里的名字必须和你 fonts 文件夹下的文件名完全一致！
+    # 如果实际文件名是 SC，就改 SC；如果是 CN，就改 CN
+    font_name = "SourceHanSansCN-Regular.otf" 
+    
+    # 动态获取路径：支持电脑端运行和 Android 端运行
+    base_path = os.path.dirname(__file__)
+    font_path = os.path.join(base_path, 'fonts', font_name)
+    
+    print(f"[DEBUG] 正在尝试加载字体路径: {font_path}")
+    
+    if os.path.exists(font_path):
+        try:
+            # 1. 注册字体到 Kivy 资源库
+            LabelBase.register('ChineseFont', font_path)
+            # 2. 强制设置 Kivy 的默认字体
+            kivy.core.text.DEFAULT_FONT = 'ChineseFont'
+            print("[SUCCESS] 全局中文字体加载成功！")
+            return True
+        except Exception as e:
+            print(f"[ERROR] 注册字体失败: {e}")
+    else:
+        print(f"[ERROR] 找不到字体文件！请检查项目中的 fonts 文件夹是否有: {font_name}")
+    return False
+
+# --- 在 DiveSaveEdApp 类定义之前调用一次 ---
+setup_fonts()
+
+class DiveSaveEdApp(App):
+    # ... 其余代码保持不变 ...
 import os
 import sys
 import json
