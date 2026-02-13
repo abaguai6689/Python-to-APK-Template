@@ -16,6 +16,7 @@ import re
 import shutil
 import time
 import random
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -45,6 +46,42 @@ from font_utils import (
     create_textinput_kwargs,
     create_tabbed_panel_header_kwargs
 )
+
+# ============ 日志配置 ============
+LOG_FILE = None
+
+def init_logging():
+    """初始化日志记录"""
+    global LOG_FILE
+    try:
+        if platform == 'android':
+            log_dir = '/sdcard/DaveSaveEd/logs'
+        else:
+            log_dir = os.path.expanduser('~/DaveSaveEd/logs')
+        
+        os.makedirs(log_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        LOG_FILE = os.path.join(log_dir, f'app_{timestamp}.log')
+        log_message(f"=== DaveSaveEd 启动 ===")
+        log_message(f"日志文件: {LOG_FILE}")
+        log_message(f"平台: {platform}")
+        return True
+    except Exception as e:
+        print(f"初始化日志失败: {e}")
+        return False
+
+def log_message(msg):
+    """记录日志到文件和控制台"""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    log_line = f"[{timestamp}] {msg}"
+    print(log_line)
+    
+    if LOG_FILE:
+        try:
+            with open(LOG_FILE, 'a', encoding='utf-8') as f:
+                f.write(log_line + '\n')
+        except:
+            pass
 
 # ============ 配置常量 ============
 XOR_KEY = b"GameData"
@@ -195,14 +232,19 @@ class ItemDatabase:
     def load_database(self, json_path):
         """加载物品数据库"""
         try:
+            log_message(f"尝试加载数据库: {json_path}")
             if os.path.exists(json_path):
                 with open(json_path, 'r', encoding='utf-8') as f:
                     self.items = {int(k): v for k, v in json.load(f).items()}
                 self.name_to_id = {v: k for k, v in self.items.items()}
+                log_message(f"数据库加载成功: {len(self.items)} 个物品")
                 return True
+            else:
+                log_message(f"数据库文件不存在: {json_path}")
             return False
         except Exception as e:
-            print(f"加载物品数据库失败: {e}")
+            log_message(f"加载物品数据库失败: {e}")
+            log_message(traceback.format_exc())
             return False
     
     def search(self, keyword):
@@ -234,6 +276,7 @@ class DaveSaveEditor:
         self.file_path = None
         self.backup_path = None
         self.item_db = None
+        self.last_error = None
     
     def load_item_database(self, json_path):
         """加载物品数据库"""
@@ -242,16 +285,50 @@ class DaveSaveEditor:
     
     def load_save_file(self, filepath):
         """加载存档文件"""
+        self.last_error = None
         try:
+            log_message(f"尝试加载存档: {filepath}")
+            
+            # 检查文件是否存在
+            if not os.path.exists(filepath):
+                self.last_error = f"文件不存在: {filepath}"
+                log_message(self.last_error)
+                return False
+            
+            # 检查文件大小
+            file_size = os.path.getsize(filepath)
+            log_message(f"文件大小: {file_size} 字节")
+            
+            if file_size == 0:
+                self.last_error = "文件为空"
+                log_message(self.last_error)
+                return False
+            
+            # 读取文件
             with open(filepath, 'rb') as f:
                 encrypted_bytes = f.read()
             
+            log_message(f"读取到 {len(encrypted_bytes)} 字节数据")
+            
+            # 解密
             json_str = decode_sav_to_json(encrypted_bytes)
+            log_message(f"解密成功，JSON 长度: {len(json_str)}")
+            
+            # 解析 JSON
             self.save_data = json.loads(json_str)
             self.file_path = filepath
+            
+            log_message(f"存档加载成功")
             return True
+            
+        except json.JSONDecodeError as e:
+            self.last_error = f"JSON 解析失败: {e}"
+            log_message(self.last_error)
+            return False
         except Exception as e:
-            print(f"加载存档失败: {e}")
+            self.last_error = f"加载存档失败: {str(e)}"
+            log_message(self.last_error)
+            log_message(traceback.format_exc())
             return False
     
     def create_backup(self):
@@ -259,16 +336,21 @@ class DaveSaveEditor:
         if not self.file_path:
             return False
         
-        backup_dir = os.path.join(os.path.dirname(self.file_path), "backups")
-        os.makedirs(backup_dir, exist_ok=True)
-        
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = os.path.basename(self.file_path)
-        backup_name = f"{filename}_{timestamp}.bak"
-        self.backup_path = os.path.join(backup_dir, backup_name)
-        
-        shutil.copy2(self.file_path, self.backup_path)
-        return True
+        try:
+            backup_dir = os.path.join(os.path.dirname(self.file_path), "backups")
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = os.path.basename(self.file_path)
+            backup_name = f"{filename}_{timestamp}.bak"
+            self.backup_path = os.path.join(backup_dir, backup_name)
+            
+            shutil.copy2(self.file_path, self.backup_path)
+            log_message(f"备份创建成功: {self.backup_path}")
+            return True
+        except Exception as e:
+            log_message(f"创建备份失败: {e}")
+            return False
     
     def save_save_file(self):
         """保存存档文件"""
@@ -283,9 +365,11 @@ class DaveSaveEditor:
             with open(self.file_path, 'wb') as f:
                 f.write(encrypted_bytes)
             
+            log_message(f"存档保存成功: {self.file_path}")
             return True
         except Exception as e:
-            print(f"保存失败: {e}")
+            log_message(f"保存失败: {e}")
+            log_message(traceback.format_exc())
             return False
     
     def get_current_values(self):
@@ -486,7 +570,9 @@ class FileChooserPopup(Popup):
     
     def on_select(self, instance):
         if self.filechooser.selection:
-            self.callback(self.filechooser.selection[0])
+            selected_path = self.filechooser.selection[0]
+            log_message(f"用户选择文件: {selected_path}")
+            self.callback(selected_path)
             self.dismiss()
 
 
@@ -743,6 +829,8 @@ class MainScreen(BoxLayout):
             possible_paths = [
                 os.path.join(storage, 'Download', 'items_id_map.json'),
                 os.path.join(os.path.dirname(__file__), 'items_id_map.json'),
+                '/sdcard/Download/items_id_map.json',
+                '/storage/emulated/0/Download/items_id_map.json',
             ]
         else:
             possible_paths = [
@@ -750,8 +838,11 @@ class MainScreen(BoxLayout):
                 'items_id_map.json',
             ]
         
+        log_message(f"搜索数据库路径: {possible_paths}")
+        
         loaded = False
         for path in possible_paths:
+            log_message(f"检查路径: {path} -> 存在: {os.path.exists(path)}")
             if os.path.exists(path):
                 if self.editor.load_item_database(path):
                     self.log(f'已加载物品数据库: {os.path.basename(path)}')
@@ -760,6 +851,7 @@ class MainScreen(BoxLayout):
         
         if not loaded:
             self.log('警告: 未找到物品数据库')
+            log_message('所有数据库路径都不存在')
     
     def log(self, message):
         """添加日志"""
@@ -879,6 +971,8 @@ class MainScreen(BoxLayout):
     def show_file_chooser(self, instance):
         """显示文件选择器"""
         def on_select(path):
+            log_message(f"选择的文件路径: {path}")
+            
             if self.editor.load_save_file(path):
                 self.file_info_label.text = f'已加载: {os.path.basename(path)}'
                 self.status_label.text = f'当前存档: {os.path.basename(path)}'
@@ -887,7 +981,9 @@ class MainScreen(BoxLayout):
                 self.refresh_ingredients()
                 self.log('存档加载成功')
             else:
-                self.show_message('错误', '加载存档失败')
+                error_msg = self.editor.last_error or '未知错误'
+                log_message(f"加载失败: {error_msg}")
+                self.show_message('错误', f'加载存档失败\n{error_msg}')
         
         popup = FileChooserPopup(on_select)
         popup.open()
@@ -1052,17 +1148,43 @@ class DaveSaveEdApp(App):
     """Kivy应用主类"""
     
     def build(self):
+        # 初始化日志
+        init_logging()
+        
         # 延迟导入 Android 库，防止启动闪退
         if platform == 'android':
             try:
                 from android.permissions import request_permissions, Permission
+                
+                # Android 11+ 需要所有文件访问权限
                 permissions = [
                     Permission.READ_EXTERNAL_STORAGE,
                     Permission.WRITE_EXTERNAL_STORAGE,
                 ]
+                
+                log_message(f"请求权限: {permissions}")
                 request_permissions(permissions)
-            except ImportError:
-                pass
+                
+                # 尝试请求 MANAGE_EXTERNAL_STORAGE (Android 11+)
+                try:
+                    from android import autoclass
+                    from android import activity
+                    
+                    # 检查是否需要特殊权限
+                    Environment = autoclass('android.os.Environment')
+                    if not Environment.isExternalStorageManager():
+                        log_message("需要 MANAGE_EXTERNAL_STORAGE 权限")
+                        
+                        # 打开设置页面让用户手动授权
+                        Intent = autoclass('android.content.Intent')
+                        Settings = autoclass('android.provider.Settings')
+                        intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                        activity.startActivity(intent)
+                except Exception as e:
+                    log_message(f"检查存储管理权限失败: {e}")
+                    
+            except ImportError as e:
+                log_message(f"导入权限模块失败: {e}")
         
         Window.clearcolor = (0.12, 0.14, 0.18, 1)
         self.title = 'Dave the Diver 存档修改器'
