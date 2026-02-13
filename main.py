@@ -37,6 +37,15 @@ from kivy.utils import platform
 from kivy.core.text import LabelBase
 from kivy.metrics import dp
 
+# 导入字体工具模块
+from font_utils import (
+    GLOBAL_FONT_NAME, 
+    create_label_kwargs, 
+    create_button_kwargs,
+    create_textinput_kwargs,
+    create_tabbed_panel_header_kwargs
+)
+
 # ============ 配置常量 ============
 XOR_KEY = b"GameData"
 BYPASS_PREFIX = "BYPASSED_HEX::"
@@ -442,6 +451,7 @@ class FileChooserPopup(Popup):
     def __init__(self, callback, **kwargs):
         super().__init__(**kwargs)
         self.title = '选择存档文件 (.sav)'
+        self.title_font = GLOBAL_FONT_NAME
         self.size_hint = (0.9, 0.9)
         self.callback = callback
         
@@ -462,10 +472,10 @@ class FileChooserPopup(Popup):
         
         btn_layout = BoxLayout(size_hint_y=0.1, spacing=10)
         
-        btn_cancel = Button(text='取消')
+        btn_cancel = Button(text='取消', font_name=GLOBAL_FONT_NAME)
         btn_cancel.bind(on_press=self.dismiss)
         
-        btn_select = Button(text='选择', background_color=(0.2, 0.8, 0.2, 1))
+        btn_select = Button(text='选择', font_name=GLOBAL_FONT_NAME, background_color=(0.2, 0.8, 0.2, 1))
         btn_select.bind(on_press=self.on_select)
         
         btn_layout.add_widget(btn_cancel)
@@ -486,18 +496,20 @@ class MessagePopup(Popup):
     def __init__(self, title, message, **kwargs):
         super().__init__(**kwargs)
         self.title = title
+        self.title_font = GLOBAL_FONT_NAME
         self.size_hint = (0.8, 0.4)
         
         layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
         
         layout.add_widget(Label(
             text=message,
+            font_name=GLOBAL_FONT_NAME,
             font_size='16sp',
             text_size=(None, None),
             halign='center'
         ))
         
-        btn_ok = Button(text='确定', size_hint_y=0.3)
+        btn_ok = Button(text='确定', font_name=GLOBAL_FONT_NAME, size_hint_y=0.3)
         btn_ok.bind(on_press=self.dismiss)
         layout.add_widget(btn_ok)
         
@@ -510,6 +522,7 @@ class NumberInputPopup(Popup):
     def __init__(self, title, hint, max_val, callback, **kwargs):
         super().__init__(**kwargs)
         self.title = title
+        self.title_font = GLOBAL_FONT_NAME
         self.size_hint = (0.8, 0.4)
         self.callback = callback
         self.max_val = max_val
@@ -518,6 +531,7 @@ class NumberInputPopup(Popup):
         
         self.text_input = TextInput(
             hint_text=hint,
+            font_name=GLOBAL_FONT_NAME,
             input_filter='int',
             multiline=False,
             font_size='18sp'
@@ -526,10 +540,10 @@ class NumberInputPopup(Popup):
         
         btn_layout = BoxLayout(size_hint_y=0.4, spacing=10)
         
-        btn_cancel = Button(text='取消')
+        btn_cancel = Button(text='取消', font_name=GLOBAL_FONT_NAME)
         btn_cancel.bind(on_press=self.dismiss)
         
-        btn_ok = Button(text='确定', background_color=(0.2, 0.8, 0.2, 1))
+        btn_ok = Button(text='确定', font_name=GLOBAL_FONT_NAME, background_color=(0.2, 0.8, 0.2, 1))
         btn_ok.bind(on_press=self.on_confirm)
         
         btn_layout.add_widget(btn_cancel)
@@ -557,6 +571,7 @@ class SearchPopup(Popup):
     def __init__(self, editor, callback, **kwargs):
         super().__init__(**kwargs)
         self.title = '搜索物品'
+        self.title_font = GLOBAL_FONT_NAME
         self.size_hint = (0.9, 0.8)
         self.editor = editor
         self.callback = callback
@@ -566,10 +581,11 @@ class SearchPopup(Popup):
         search_layout = BoxLayout(size_hint_y=0.1, spacing=10)
         self.search_input = TextInput(
             hint_text='输入物品ID或名称',
+            font_name=GLOBAL_FONT_NAME,
             multiline=False,
             font_size='16sp'
         )
-        search_btn = Button(text='搜索', size_hint_x=0.2)
+        search_btn = Button(text='搜索', font_name=GLOBAL_FONT_NAME, size_hint_x=0.2)
         search_btn.bind(on_press=self.do_search)
         
         search_layout.add_widget(self.search_input)
@@ -583,7 +599,7 @@ class SearchPopup(Popup):
         scroll.add_widget(self.results_layout)
         layout.add_widget(scroll)
         
-        btn_close = Button(text='关闭', size_hint_y=0.1)
+        btn_close = Button(text='关闭', font_name=GLOBAL_FONT_NAME, size_hint_y=0.1)
         btn_close.bind(on_press=self.dismiss)
         layout.add_widget(btn_close)
         
@@ -601,6 +617,7 @@ class SearchPopup(Popup):
         if not results:
             self.results_layout.add_widget(Label(
                 text='未找到相关物品',
+                font_name=GLOBAL_FONT_NAME,
                 size_hint_y=None,
                 height=40
             ))
@@ -611,6 +628,7 @@ class SearchPopup(Popup):
         for idx, (item_id, item_name) in enumerate(results[:20]):
             btn = Button(
                 text=f'{item_name} (ID: {item_id})',
+                font_name=GLOBAL_FONT_NAME,
                 size_hint_y=None,
                 height=50
             )
@@ -620,6 +638,7 @@ class SearchPopup(Popup):
         if len(results) > 20:
             self.results_layout.add_widget(Label(
                 text=f'...还有 {len(results)-20} 个结果',
+                font_name=GLOBAL_FONT_NAME,
                 size_hint_y=None,
                 height=30
             ))
@@ -658,6 +677,7 @@ class MainScreen(BoxLayout):
         # 提前创建 log_label
         self.log_label = Label(
             text='就绪',
+            font_name=GLOBAL_FONT_NAME,
             font_size='12sp',
             size_hint_y=0.08,
             color=(0.6, 0.6, 0.6, 1),
@@ -668,6 +688,7 @@ class MainScreen(BoxLayout):
         # 标题
         self.add_widget(Label(
             text='🌊 Dave the Diver 存档修改器',
+            font_name=GLOBAL_FONT_NAME,
             font_size='24sp',
             size_hint_y=0.08,
             bold=True
@@ -676,6 +697,7 @@ class MainScreen(BoxLayout):
         # 状态栏
         self.status_label = Label(
             text='未加载存档',
+            font_name=GLOBAL_FONT_NAME,
             font_size='14sp',
             size_hint_y=0.06,
             color=(0.8, 0.8, 0.8, 1)
@@ -689,18 +711,22 @@ class MainScreen(BoxLayout):
         self.tabs = TabbedPanel(do_default_tab=False, size_hint_y=0.86)
         
         tab_file = TabbedPanelHeader(text='📂 存档')
+        tab_file.font_name = GLOBAL_FONT_NAME
         tab_file.content = self.create_file_tab()
         self.tabs.add_widget(tab_file)
         
         tab_currency = TabbedPanelHeader(text='💰 货币')
+        tab_currency.font_name = GLOBAL_FONT_NAME
         tab_currency.content = self.create_currency_tab()
         self.tabs.add_widget(tab_currency)
         
         tab_ingredients = TabbedPanelHeader(text='🍖 食材')
+        tab_ingredients.font_name = GLOBAL_FONT_NAME
         tab_ingredients.content = self.create_ingredients_tab()
         self.tabs.add_widget(tab_ingredients)
         
         tab_items = TabbedPanelHeader(text='📦 物品')
+        tab_items.font_name = GLOBAL_FONT_NAME
         tab_items.content = self.create_items_tab()
         self.tabs.add_widget(tab_items)
         
@@ -753,17 +779,19 @@ class MainScreen(BoxLayout):
         
         self.file_info_label = Label(
             text='请选择存档文件',
+            font_name=GLOBAL_FONT_NAME,
             font_size='16sp',
             size_hint_y=0.3
         )
         layout.add_widget(self.file_info_label)
         
-        btn_load = Button(text='📂 选择存档文件', font_size='18sp', size_hint_y=0.2)
+        btn_load = Button(text='📂 选择存档文件', font_name=GLOBAL_FONT_NAME, font_size='18sp', size_hint_y=0.2)
         btn_load.bind(on_press=self.show_file_chooser)
         layout.add_widget(btn_load)
         
         btn_save = Button(
             text='💾 保存修改',
+            font_name=GLOBAL_FONT_NAME,
             font_size='18sp',
             size_hint_y=0.2,
             background_color=(0.2, 0.7, 0.3, 1)
@@ -771,7 +799,7 @@ class MainScreen(BoxLayout):
         btn_save.bind(on_press=self.save_file)
         layout.add_widget(btn_save)
         
-        btn_export = Button(text='📤 导出JSON', font_size='16sp', size_hint_y=0.15)
+        btn_export = Button(text='📤 导出JSON', font_name=GLOBAL_FONT_NAME, font_size='16sp', size_hint_y=0.15)
         btn_export.bind(on_press=self.export_json)
         layout.add_widget(btn_export)
         
@@ -792,6 +820,7 @@ class MainScreen(BoxLayout):
         for key, name, max_val in currencies:
             label = Label(
                 text=f'{name}: 0',
+                font_name=GLOBAL_FONT_NAME,
                 font_size='16sp',
                 size_hint_y=None,
                 height=50
@@ -799,7 +828,7 @@ class MainScreen(BoxLayout):
             self.currency_labels[key] = label
             layout.add_widget(label)
             
-            btn = Button(text='修改', size_hint_y=None, height=50)
+            btn = Button(text='修改', font_name=GLOBAL_FONT_NAME, size_hint_y=None, height=50)
             btn.bind(on_press=lambda inst, k=key, n=name, m=max_val: self.modify_currency(k, n, m))
             layout.add_widget(btn)
         
@@ -811,10 +840,10 @@ class MainScreen(BoxLayout):
         
         btn_layout = BoxLayout(size_hint_y=0.15, spacing=10)
         
-        btn_refresh = Button(text='🔄 刷新列表')
+        btn_refresh = Button(text='🔄 刷新列表', font_name=GLOBAL_FONT_NAME)
         btn_refresh.bind(on_press=self.refresh_ingredients)
         
-        btn_set_all = Button(text='⚡ 统一设置数量')
+        btn_set_all = Button(text='⚡ 统一设置数量', font_name=GLOBAL_FONT_NAME)
         btn_set_all.bind(on_press=self.set_all_ingredients)
         
         btn_layout.add_widget(btn_refresh)
@@ -834,12 +863,13 @@ class MainScreen(BoxLayout):
         """创建物品搜索标签"""
         layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
         
-        btn_search = Button(text='🔍 搜索并修改物品', font_size='20sp', size_hint_y=0.3)
+        btn_search = Button(text='🔍 搜索并修改物品', font_name=GLOBAL_FONT_NAME, font_size='20sp', size_hint_y=0.3)
         btn_search.bind(on_press=self.show_search_popup)
         layout.add_widget(btn_search)
         
         layout.add_widget(Label(
             text='支持按物品ID或名称搜索\n可添加新物品到存档',
+            font_name=GLOBAL_FONT_NAME,
             font_size='14sp',
             color=(0.6, 0.6, 0.6, 1)
         ))
@@ -906,6 +936,7 @@ class MainScreen(BoxLayout):
         if not self.editor.save_data:
             self.ingredients_layout.add_widget(Label(
                 text='请先加载存档',
+                font_name=GLOBAL_FONT_NAME,
                 size_hint_y=None,
                 height=40
             ))
@@ -915,6 +946,7 @@ class MainScreen(BoxLayout):
         if not ingredients:
             self.ingredients_layout.add_widget(Label(
                 text='暂无食材数据',
+                font_name=GLOBAL_FONT_NAME,
                 size_hint_y=None,
                 height=40
             ))
@@ -925,6 +957,7 @@ class MainScreen(BoxLayout):
         for ing in ingredients[:50]:
             btn = Button(
                 text=f'{ing["name"]} x{ing["count"]}',
+                font_name=GLOBAL_FONT_NAME,
                 size_hint_y=None,
                 height=45
             )
@@ -1031,68 +1064,9 @@ class DaveSaveEdApp(App):
             except ImportError:
                 pass
         
-        # 加载中文字体
-        self.load_chinese_font()
-        
         Window.clearcolor = (0.12, 0.14, 0.18, 1)
         self.title = 'Dave the Diver 存档修改器'
         return MainScreen()
-    
-    def load_chinese_font(self):
-        """加载打包的中文字体"""
-        # 字体文件可能的路径（按优先级）
-        font_paths = [
-            # 打包后的路径
-            os.path.join(os.path.dirname(__file__), 'fonts', 'SourceHanSansCN-Regular.otf'),
-            os.path.join(os.path.dirname(__file__), 'fonts', 'NotoSansCJK-Regular.ttc'),
-            os.path.join(os.path.dirname(__file__), 'fonts', 'DroidSansFallback.ttf'),
-            os.path.join(os.path.dirname(__file__), 'fonts', 'msyh.ttf'),
-            os.path.join(os.path.dirname(__file__), 'fonts', 'simhei.ttf'),
-            # 当前目录
-            'fonts/SourceHanSansCN-Regular.otf',
-            'fonts/NotoSansCJK-Regular.ttc',
-            'fonts/DroidSansFallback.ttf',
-            'fonts/msyh.ttf',
-            'fonts/simhei.ttf',
-        ]
-        
-        font_loaded = False
-        
-        for font_path in font_paths:
-            if os.path.exists(font_path):
-                try:
-                    # 注册字体
-                    LabelBase.register('ChineseFont', font_path)
-                    
-                    # 设置为默认字体
-                    import kivy.core.text
-                    kivy.core.text.DEFAULT_FONT = 'ChineseFont'
-                    
-                    print(f"[FONT] Loaded: {font_path}")
-                    font_loaded = True
-                    break
-                except Exception as e:
-                    print(f"[FONT] Failed to load {font_path}: {e}")
-                    continue
-        
-        if not font_loaded:
-            print("[FONT] No Chinese font found, using system default")
-            # 尝试使用系统字体作为后备
-            if platform == 'android':
-                system_fonts = [
-                    '/system/fonts/NotoSansCJK-Regular.ttc',
-                    '/system/fonts/DroidSansFallbackFull.ttf',
-                ]
-                for sys_font in system_fonts:
-                    if os.path.exists(sys_font):
-                        try:
-                            LabelBase.register('ChineseFont', sys_font)
-                            import kivy.core.text
-                            kivy.core.text.DEFAULT_FONT = 'ChineseFont'
-                            print(f"[FONT] Loaded system font: {sys_font}")
-                            break
-                        except:
-                            pass
 
 
 if __name__ == '__main__':
