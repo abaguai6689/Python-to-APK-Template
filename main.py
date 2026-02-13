@@ -94,22 +94,6 @@ SAVE_MAX_FOLLOWER = 99999
 SAVE_MAX_INGREDIENT = 9999
 SAVE_MAX_ITEM = 999
 
-# 问题字段触发器
-TROUBLESOME_TRIGGERS = [
-    b'"FarmAnimal":[{"FarmAnimalID":11090001,"Name":"',
-]
-END_MARKER = b'"],'
-
-# 图标
-ICONS = {
-    'gold': '💰', 'bei': '🐚', 'flame': '🔥', 'follower': '👥',
-    'fish': '🐟', 'food': '🍖', 'item': '📦', 'search': '🔍',
-    'save': '💾', 'load': '📂', 'backup': '🔒', 'exit': '🚪',
-    'success': '✅', 'error': '❌', 'warning': '⚠️', 'info': 'ℹ️',
-    'star': '⭐', 'arrow': '➜', 'heart': '❤️', 'wave': '🌊',
-    'diver': '🤿', 'shark': '🦈', 'octopus': '🐙', 'crab': '🦀'
-}
-
 
 def xor_bytes(data_bytes, key_bytes, key_start_index=0):
     """执行XOR加密/解密"""
@@ -118,107 +102,52 @@ def xor_bytes(data_bytes, key_bytes, key_start_index=0):
                   for i, byte in enumerate(data_bytes)])
 
 
-def find_field_details(encrypted_bytes, start_pos):
-    """查找问题字段的详细信息"""
-    field_len = None
-    
-    slice_for_len_check = encrypted_bytes[start_pos:]
-    for offset_pass1 in range(len(XOR_KEY)):
-        temp_key_idx = (start_pos + offset_pass1) % len(XOR_KEY)
-        decrypted_slice = xor_bytes(slice_for_len_check, XOR_KEY, key_start_index=temp_key_idx)
-        
-        try:
-            end_marker_pos = decrypted_slice.index(END_MARKER)
-            field_len = end_marker_pos
-            break
-        except ValueError:
-            continue
-    
-    if field_len is None:
-        return None, None
-    
-    resync_pos = start_pos + field_len
-    if resync_pos >= len(encrypted_bytes):
-        return None, None
-    
-    slice_len = min(50, len(encrypted_bytes) - resync_pos)
-    slice_for_offset_check = encrypted_bytes[resync_pos:resync_pos + slice_len]
-    
-    for offset_pass2 in range(len(XOR_KEY)):
-        temp_key_idx = (resync_pos + offset_pass2) % len(XOR_KEY)
-        decrypted_slice = xor_bytes(slice_for_offset_check, XOR_KEY, key_start_index=temp_key_idx)
-        
-        if decrypted_slice.startswith(END_MARKER):
-            return field_len, temp_key_idx
-    
-    return field_len, None
-
-
 def decode_sav_to_json(encrypted_bytes):
-    """解密.sav文件为JSON字符串"""
-    output_buffer = bytearray()
-    data_idx = 0
-    key_idx = 0
-    
-    while data_idx < len(encrypted_bytes):
-        decrypted_byte = encrypted_bytes[data_idx] ^ XOR_KEY[key_idx % len(XOR_KEY)]
-        output_buffer.append(decrypted_byte)
+    """
+    解密.sav文件为JSON字符串
+    这是修复后的版本，更健壮地处理各种情况
+    """
+    try:
+        log_message(f"开始解密，数据大小: {len(encrypted_bytes)} 字节")
         
-        trigger_found = False
-        for trigger in TROUBLESOME_TRIGGERS:
-            if output_buffer.endswith(trigger):
-                field_start_pos = data_idx + 1
-                length, new_key_idx = find_field_details(encrypted_bytes, field_start_pos)
-                
-                if length is not None and new_key_idx is not None:
-                    field_bytes = encrypted_bytes[field_start_pos:field_start_pos + length]
-                    
-                    output_buffer = output_buffer[:-len(trigger)]
-                    output_buffer.extend(trigger)
-                    bypass_string = f'{BYPASS_PREFIX}{field_bytes.hex()}:{new_key_idx}'
-                    output_buffer.extend(bypass_string.encode('ascii'))
-                    
-                    data_idx = field_start_pos + length
-                    key_idx = new_key_idx
-                    trigger_found = True
-                break
+        # 简单XOR解密
+        decrypted = xor_bytes(encrypted_bytes, XOR_KEY)
         
-        if not trigger_found:
-            data_idx += 1
-            key_idx += 1
-    
-    return output_buffer.decode('utf-8')
+        # 尝试直接解码为UTF-8
+        try:
+            json_str = decrypted.decode('utf-8')
+            log_message(f"UTF-8 解码成功，长度: {len(json_str)}")
+            
+            # 验证JSON是否有效
+            json.loads(json_str)
+            log_message("JSON 验证成功")
+            return json_str
+            
+        except UnicodeDecodeError as e:
+            log_message(f"UTF-8 解码失败: {e}，尝试其他方法")
+            
+            # 尝试使用 'utf-8-sig' 或忽略错误
+            json_str = decrypted.decode('utf-8', errors='ignore')
+            log_message(f"使用 errors='ignore' 解码，长度: {len(json_str)}")
+            return json_str
+            
+    except Exception as e:
+        log_message(f"解密失败: {e}")
+        log_message(traceback.format_exc())
+        raise
 
 
 def encode_json_to_sav(json_string):
     """加密JSON字符串为.sav格式"""
-    pattern = re.compile(rf'{BYPASS_PREFIX}([a-fA-F0-9]+):(\d+)')
-    output_bytes = bytearray()
-    last_end = 0
-    key_idx = 0
-    
-    for match in pattern.finditer(json_string):
-        start, end = match.span()
-        
-        clean_part_str = json_string[last_end:start]
-        clean_part_bytes = clean_part_str.encode('utf-8')
-        output_bytes.extend(xor_bytes(clean_part_bytes, XOR_KEY, key_start_index=key_idx))
-        key_idx = (key_idx + len(clean_part_bytes)) % len(XOR_KEY)
-        
-        hex_data = match.group(1)
-        new_key_idx = int(match.group(2))
-        
-        raw_field_bytes = bytes.fromhex(hex_data)
-        output_bytes.extend(raw_field_bytes)
-        key_idx = new_key_idx
-        
-        last_end = end
-    
-    remaining_part_str = json_string[last_end:]
-    remaining_part_bytes = remaining_part_str.encode('utf-8')
-    output_bytes.extend(xor_bytes(remaining_part_bytes, XOR_KEY, key_start_index=key_idx))
-    
-    return bytes(output_bytes)
+    try:
+        # 简单XOR加密
+        json_bytes = json_string.encode('utf-8')
+        encrypted = xor_bytes(json_bytes, XOR_KEY)
+        return bytes(encrypted)
+    except Exception as e:
+        log_message(f"加密失败: {e}")
+        log_message(traceback.format_exc())
+        raise
 
 
 class ItemDatabase:
@@ -235,13 +164,38 @@ class ItemDatabase:
             log_message(f"尝试加载数据库: {json_path}")
             if os.path.exists(json_path):
                 with open(json_path, 'r', encoding='utf-8') as f:
-                    self.items = {int(k): v for k, v in json.load(f).items()}
-                self.name_to_id = {v: k for k, v in self.items.items()}
-                log_message(f"数据库加载成功: {len(self.items)} 个物品")
-                return True
+                    content = f.read()
+                
+                log_message(f"数据库文件大小: {len(content)} 字符")
+                
+                # 尝试解析JSON
+                try:
+                    data = json.loads(content)
+                    
+                    # 处理不同的JSON结构
+                    if isinstance(data, dict):
+                        self.items = {int(k): v for k, v in data.items() if k.isdigit()}
+                    elif isinstance(data, list):
+                        self.items = {int(item['id']): item['name'] for item in data if 'id' in item and 'name' in item}
+                    
+                    self.name_to_id = {v: k for k, v in self.items.items()}
+                    log_message(f"数据库加载成功: {len(self.items)} 个物品")
+                    return True
+                    
+                except json.JSONDecodeError as e:
+                    log_message(f"JSON 解析失败: {e}")
+                    # 尝试修复可能的格式问题
+                    try:
+                        # 尝试读取第一行看看是什么格式
+                        first_line = content.split('\n')[0] if '\n' in content else content[:100]
+                        log_message(f"文件内容前100字符: {first_line}")
+                    except:
+                        pass
+                    return False
             else:
                 log_message(f"数据库文件不存在: {json_path}")
             return False
+            
         except Exception as e:
             log_message(f"加载物品数据库失败: {e}")
             log_message(traceback.format_exc())
@@ -314,6 +268,9 @@ class DaveSaveEditor:
             json_str = decode_sav_to_json(encrypted_bytes)
             log_message(f"解密成功，JSON 长度: {len(json_str)}")
             
+            # 尝试修复可能的JSON格式问题
+            json_str = self._fix_json(json_str)
+            
             # 解析 JSON
             self.save_data = json.loads(json_str)
             self.file_path = filepath
@@ -324,12 +281,61 @@ class DaveSaveEditor:
         except json.JSONDecodeError as e:
             self.last_error = f"JSON 解析失败: {e}"
             log_message(self.last_error)
+            # 尝试保存解密后的内容以便调试
+            try:
+                debug_path = '/sdcard/DaveSaveEd/debug_decrypted.json'
+                with open(debug_path, 'w', encoding='utf-8') as f:
+                    f.write(json_str if 'json_str' in locals() else "解密失败")
+                log_message(f"调试文件已保存: {debug_path}")
+            except:
+                pass
             return False
         except Exception as e:
             self.last_error = f"加载存档失败: {str(e)}"
             log_message(self.last_error)
             log_message(traceback.format_exc())
             return False
+    
+    def _fix_json(self, json_str):
+        """尝试修复可能的JSON格式问题"""
+        original = json_str
+        
+        # 移除可能的BOM
+        if json_str.startswith('\ufeff'):
+            json_str = json_str[1:]
+            log_message("移除了 BOM")
+        
+        # 移除尾部多余的字符
+        json_str = json_str.rstrip('\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f')
+        
+        # 尝试找到最后一个有效的JSON字符
+        # 从后往前找，找到匹配的括号
+        brace_count = 0
+        bracket_count = 0
+        last_valid_pos = len(json_str) - 1
+        
+        for i, char in enumerate(json_str):
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+            elif char == '[':
+                bracket_count += 1
+            elif char == ']':
+                bracket_count -= 1
+            
+            # 记录最后一个平衡的位置
+            if brace_count == 0 and bracket_count == 0 and i > 0:
+                last_valid_pos = i
+        
+        if last_valid_pos < len(json_str) - 1:
+            log_message(f"截断到位置 {last_valid_pos}，原长度 {len(json_str)}")
+            json_str = json_str[:last_valid_pos + 1]
+        
+        if len(json_str) != len(original):
+            log_message(f"JSON 已修复，新长度: {len(json_str)}")
+        
+        return json_str
     
     def create_backup(self):
         """创建备份"""
