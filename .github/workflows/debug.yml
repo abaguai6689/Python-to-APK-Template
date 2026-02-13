@@ -76,68 +76,167 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-buildozer-
 
-    - name: Inject crash handler into main.py
+    - name: Check fonts directory
       run: |
-        cat > crash_handler.py << 'ENDOFFILE'
-        # 自动注入的崩溃日志捕获器
-        import os
-        import sys
-        import traceback
-        from datetime import datetime
-        
-        CRASH_LOG_DIR = '/sdcard/DaveSaveEd/crashes' if os.path.exists('/sdcard') else os.path.expanduser('~')
-        
-        def handle_exception(exc_type, exc_value, exc_traceback):
-            if issubclass(exc_type, KeyboardInterrupt):
-                sys.__excepthook__(exc_type, exc_value, exc_traceback)
-                return
-            
-            error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
+        echo "Checking fonts directory..."
+        ls -la fonts/ 2>/dev/null || echo "WARNING: fonts/ directory not found!"
+        find . -name "*.ttf" -o -name "*.otf" -o -name "*.ttc" | head -20
+
+    - name: Inject font preload and crash handler into main.py
+      run: |
+        # 创建字体预加载代码（必须放在最前面，在Kivy导入之前）
+        cat > font_preload.py << 'FONTEOF'
+# ========== 字体预加载（必须在Kivy组件导入之前）==========
+import os
+import sys
+
+print(f"[FONT] Starting font preload...")
+print(f"[FONT] Current file: {__file__}")
+print(f"[FONT] Current dir: {os.path.dirname(__file__)}")
+
+# 先尝试导入并设置字体
+try:
+    from kivy.utils import platform
+    from kivy.core.text import LabelBase
+    
+    font_paths = [
+        os.path.join(os.path.dirname(__file__), 'fonts', 'SourceHanSansCN-Regular.otf'),
+        os.path.join(os.path.dirname(__file__), 'fonts', 'NotoSansCJK-Regular.ttc'),
+        os.path.join(os.path.dirname(__file__), 'fonts', 'DroidSansFallback.ttf'),
+        os.path.join(os.path.dirname(__file__), 'fonts', 'msyh.ttf'),
+        os.path.join(os.path.dirname(__file__), 'fonts', 'simhei.ttf'),
+        'fonts/SourceHanSansCN-Regular.otf',
+        'fonts/NotoSansCJK-Regular.ttc',
+        'fonts/DroidSansFallback.ttf',
+        'fonts/msyh.ttf',
+        'fonts/simhei.ttf',
+    ]
+    
+    font_loaded = False
+    for font_path in font_paths:
+        exists = os.path.exists(font_path)
+        print(f"[FONT] Checking: {font_path} -> {exists}")
+        if exists and not font_loaded:
             try:
-                os.makedirs(CRASH_LOG_DIR, exist_ok=True)
-                log_file = os.path.join(CRASH_LOG_DIR, f'crash_{timestamp}.log')
-                with open(log_file, 'w', encoding='utf-8') as f:
-                    f.write(f"DaveSaveEd Crash Log\n")
-                    f.write(f"Time: {timestamp}\n")
-                    f.write(f"{'='*50}\n")
-                    f.write(error_msg)
-                print(f"Crash log saved to: {log_file}")
+                LabelBase.register('ChineseFont', font_path)
+                import kivy.core.text
+                kivy.core.text.DEFAULT_FONT = 'ChineseFont'
+                print(f"[FONT] SUCCESS: Loaded {font_path}")
+                font_loaded = True
+                break
             except Exception as e:
-                print(f"Failed to save crash log: {e}")
-            
-            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+                print(f"[FONT] ERROR loading {font_path}: {e}")
+                continue
+    
+    # 尝试系统字体作为后备
+    if not font_loaded and platform == 'android':
+        print("[FONT] Trying system fonts...")
+        system_fonts = [
+            '/system/fonts/NotoSansCJK-Regular.ttc',
+            '/system/fonts/DroidSansFallbackFull.ttf',
+            '/system/fonts/NotoSansSC-Regular.otf',
+        ]
+        for sys_font in system_fonts:
+            if os.path.exists(sys_font):
+                try:
+                    LabelBase.register('ChineseFont', sys_font)
+                    import kivy.core.text
+                    kivy.core.text.DEFAULT_FONT = 'ChineseFont'
+                    print(f"[FONT] SUCCESS: Loaded system font {sys_font}")
+                    font_loaded = True
+                    break
+                except Exception as e:
+                    print(f"[FONT] ERROR loading system font {sys ERROR loading system font {sys_font}: {e}")
+                    continue
+    
+    if not font_loaded:
+        print("[FONT] WARNING: No Chinese font loaded! UI will show squares.")
         
-        sys.excepthook = handle_exception
+except Exception as e:
+    print(f"[FONT] FATAL ERROR in font preload: {e}")
+    import traceback
+    traceback.print_exc()
+
+FONTEOF
+
+        # 创建崩溃处理器
+        cat > crash_handler.py << 'CRASHEOF'
+# ========== 崩溃日志捕获器 ==========
+import os
+import sys
+import traceback
+from datetime import datetime
+
+CRASH_LOG_DIR = '/sdcard/DaveSaveEd/crashes' if os.path.exists('/sdcard') else os.path.expanduser('~')
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    """全局异常处理"""
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    
+    error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    try:
+        os.makedirs(CRASH_LOG_DIR, exist_ok=True)
+        log_file = os.path.join(CRASH_LOG_DIR, f'crash_{timestamp}.log')
+        with open(log_file, 'w', encoding='utf-8') as f:
+            f.write(f"DaveSaveEd Crash Log\n")
+            f.write(f"Time: {timestamp}\n")
+            f.write(f"{'='*50}\n")
+            f.write(error_msg)
+        print(f"[CRASH] Log saved to: {log_file}")
+    except Exception as e:
+        print(f"[CRASH] Failed to save crash log: {e}")
+    
+    sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+sys.excepthook = handle_exception
+
+# Kivy 特定的异常捕获
+try:
+    from kivy.base import ExceptionHandler, ExceptionManager
+    
+    class KivyCrashHandler(ExceptionHandler):
+        def handle_exception(self, inst):
+            handle_exception(type(inst), inst, inst.__traceback__)
+            return ExceptionManager.PASS
+    
+    ExceptionManager.add_handler(KivyCrashHandler())
+    print("[CRASH] Kivy crash handler installed")
+except ImportError:
+    print("[CRASH] Kivy not available for crash handler")
+
+CRASHEOF
+
+        # 备份原 main.py
+        cp main.py main.py.backup
         
-        try:
-            import kivy
-            from kivy.base import ExceptionHandler, ExceptionManager
-            
-            class KivyCrashHandler(ExceptionHandler):
-                def handle_exception(self, inst):
-                    handle_exception(type(inst), inst, inst.__traceback__)
-                    return ExceptionManager.PASS
-            
-            ExceptionManager.add_handler(KivyCrashHandler())
-        except ImportError:
-            pass
-        ENDOFFILE
+        # 移除原 main.py 中的字体加载代码（避免重复）
+        grep -v "def load_chinese_font\|preload_chinese_font\|LabelBase.register('ChineseFont'\|kivy.core.text.DEFAULT_FONT = 'ChineseFont'" main.py > main_clean.py 2>/dev/null || cp main.py main_clean.py
         
-        if [ -f main.py ]; then
-          cat crash_handler.py main.py > main_temp.py && mv main_temp.py main.py
-          echo "Crash handler injected into main.py"
-        fi
+        # 按顺序注入：字体预加载 -> 崩溃处理 -> 原main.py
+        cat font_preload.py crash_handler.py main_clean.py > main.py
+        
+        # 清理临时文件
+        rm -f main_clean.py font_preload.py crash_handler.py
+        
+        echo "Font preload and crash handler injected into main.py"
+        echo "=== First 50 lines of new main.py ==="
+        head -50 main.py
 
     - name: Build APK with Buildozer
       run: |
+        # 确保目录存在
         mkdir -p bin
         
+        # 接受Android SDK许可证
         if [ -d "$ANDROID_HOME/cmdline-tools/latest/bin" ]; then
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
         fi
         
+        # 构建APK
         buildozer -v android debug
       env:
         BUILDOZER_ALLOW_ORG_NAME_START_WITH_NUMBER: 1
@@ -151,7 +250,7 @@ jobs:
         path: bin/*.apk
         retention-days: 30
 
-    - name: Upload build logs
+    - name: Upload build logs (always)
       if: always()
       uses: actions/upload-artifact@v4
       with:
@@ -165,26 +264,34 @@ jobs:
     - name: Create crash log README
       if: success()
       run: |
-        cat > CRASH_LOG_README.txt << 'ENDOFFILE'
-        DaveSaveEd 崩溃日志收集说明
-        =============================
-        
-        如果应用闪退，请按以下步骤获取日志：
-        
-        方法一：通过 USB 调试（需要电脑）
-        1. 手机开启开发者选项和 USB 调试
-        2. 连接电脑，运行命令：adb logcat -d > crash_log.txt
-        3. 在 logcat 中搜索 "Python" 或 "DaveSaveEd" 相关错误
-        
-        方法二：检查本地日志文件
-        1. 打开手机文件管理器
-        2. 进入 /sdcard/DaveSaveEd/crashes/ 目录
-        3. 查找 crash_*.log 文件
-        
-        常见闪退原因：
-        - 缺少存储权限：请手动授予"所有文件访问权限"
-        - Android 11+ 需要特殊权限处理
-        ENDOFFILE
+        cat > CRASH_LOG_README.txt << 'EOF'
+DaveSaveEd 崩溃日志收集说明
+=============================
+
+如果应用闪退，请按以下步骤获取日志：
+
+方法一：通过 USB 调试（需要电脑）
+1. 手机开启开发者选项和 USB 调试
+2. 连接电脑，运行命令：
+   adb logcat -d > crash_log.txt
+3. 在 logcat 中搜索 "Python" 或 "DaveSaveEd" 相关错误
+
+方法二：检查本地日志文件（如果应用有写入权限）
+1. 打开手机文件管理器
+2. 进入 /sdcard/DaveSaveEd/crashes/ 目录
+3. 查找 crash_*.log 文件
+
+方法三：使用第三方日志应用
+1. 安装 "Logcat Reader" 或类似应用
+2. 授予 ROOT 权限（如果需要）
+3. 过滤关键词 "python"、"kivy" 或 "DaveSaveEd"
+
+常见闪退原因：
+- 缺少存储权限：请手动授予"所有文件访问权限"
+- Android 版本不兼容：Android 11+ 需要特殊权限处理
+- 依赖库缺失：检查 buildozer.spec 中的 requirements
+
+EOF
         cp CRASH_LOG_README.txt bin/
 
     - name: Upload crash log helper
@@ -194,3 +301,22 @@ jobs:
         name: crash-log-instructions
         path: CRASH_LOG_README.txt
         retention-days: 30
+
+    - name: Check for common build issues
+      if: failure()
+      run: |
+        echo "构建失败，检查常见问题..."
+        
+        if grep -q "NDK" buildozer.log 2>/dev/null; then
+          echo "::warning::检测到 NDK 相关问题"
+        fi
+        
+        if grep -q "No module named" buildozer.log 2>/dev/null; then
+          echo "::warning::检测到 Python 模块缺失"
+        fi
+        
+        if grep -q "permission" buildozer.log 2>/dev/null; then
+          echo "::warning::检测到权限相关问题"
+        fi
+        
+        exit 1
