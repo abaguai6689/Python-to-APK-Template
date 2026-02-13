@@ -1053,6 +1053,16 @@ class DaveSaveEdApp(App):
     """Kivy应用主类"""
     
     def build(self):
+    # 测试系统字体
+    if platform == 'android':
+        test_fonts = [
+            '/system/fonts/NotoSansCJK-Regular.ttc',
+            '/system/fonts/DroidSansFallbackFull.ttf',
+        ]
+        for f in test_fonts:
+            print(f"[TEST] Font exists: {f} -> {os.path.exists(f)}")
+    
+    # ... 原有代码
         # 延迟导入 Android 库，防止启动闪退
         if platform == 'android':
             try:
