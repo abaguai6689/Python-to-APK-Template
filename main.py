@@ -1,44 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
-# ========== 崩溃日志捕获器（必须在最前面）==========
-import sys
-import os
-import traceback
-from datetime import datetime
-
-def setup_crash_handler():
-    """设置全局异常捕获"""
-    crash_dir = os.path.join(os.path.expanduser('~'), 'DaveSaveEd_crashes')
-    if os.path.exists('/sdcard'):
-        crash_dir = '/sdcard/DaveSaveEd/crashes'
-    
-    os.makedirs(crash_dir, exist_ok=True)
-    
-    def handle_exception(exc_type, exc_value, exc_traceback):
-        if issubclass(exc_type, KeyboardInterrupt):
-            sys.__excepthook__(exc_type, exc_value, exc_traceback)
-            return
-        
-        error_msg = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        try:
-            log_file = os.path.join(crash_dir, f'crash_{timestamp}.log')
-            with open(log_file, 'w', encoding='utf-8') as f:
-                f.write(f"DaveSaveEd Crash Log\nTime: {timestamp}\n{'='*50}\n{error_msg}")
-            print(f"[CRASH] Log saved: {log_file}")
-        except Exception as e:
-            print(f"[CRASH] Failed to save log: {e}")
-        
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
-    
-    sys.excepthook = handle_exception
-
-setup_crash_handler()
-# ========== 崩溃捕获器结束 ==========
-
-# 原有导入...
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
@@ -696,8 +657,16 @@ class MainScreen(BoxLayout):
         
         self.editor = DaveSaveEditor()
         
-        # 加载物品数据库
-        self.load_item_database()
+        # ========== 修复1：提前创建 log_label（在调用 log() 之前）==========
+        self.log_label = Label(
+            text='就绪',
+            font_size='12sp',
+            size_hint_y=0.08,
+            color=(0.6, 0.6, 0.6, 1),
+            text_size=(None, None),
+            halign='left'
+        )
+        # 注意：这里先不添加到布局，只创建对象，避免显示顺序问题
         
         # 标题
         self.add_widget(Label(
@@ -715,6 +684,9 @@ class MainScreen(BoxLayout):
             color=(0.8, 0.8, 0.8, 1)
         )
         self.add_widget(self.status_label)
+        
+        # 现在可以安全调用 load_item_database() 了，因为 log_label 已创建
+        self.load_item_database()
         
         # 标签页
         self.tabs = TabbedPanel(do_default_tab=False, size_hint_y=0.86)
@@ -741,15 +713,7 @@ class MainScreen(BoxLayout):
         
         self.add_widget(self.tabs)
         
-        # 日志区域
-        self.log_label = Label(
-            text='就绪',
-            font_size='12sp',
-            size_hint_y=0.08,
-            color=(0.6, 0.6, 0.6, 1),
-            text_size=(None, None),
-            halign='left'
-        )
+        # 最后添加日志区域到布局
         self.add_widget(self.log_label)
     
     def load_item_database(self):
@@ -785,8 +749,12 @@ class MainScreen(BoxLayout):
     
     def log(self, message):
         """添加日志"""
-        self.log_label.text = message
-        print(message)
+        # ========== 修复2：增加安全检查，防止属性未初始化时崩溃 ==========
+        if hasattr(self, 'log_label') and self.log_label is not None:
+            self.log_label.text = message
+        else:
+            # 如果 log_label 还没创建，打印到控制台
+            print(f"[LOG] {message}")
     
     def show_message(self, title, message):
         """显示消息弹窗"""
