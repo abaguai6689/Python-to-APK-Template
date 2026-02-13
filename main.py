@@ -35,6 +35,7 @@ from kivy.properties import StringProperty, ObjectProperty
 from kivy.clock import Clock
 from kivy.utils import platform
 from kivy.core.text import LabelBase
+from kivy.metrics import dp
 
 # ============ 配置常量 ============
 XOR_KEY = b"GameData"
@@ -192,7 +193,7 @@ class ItemDatabase:
                 return True
             return False
         except Exception as e:
-            print(f"Load database error: {e}")
+            print(f"加载物品数据库失败: {e}")
             return False
     
     def search(self, keyword):
@@ -213,7 +214,7 @@ class ItemDatabase:
     
     def get_name(self, item_id):
         """获取物品名称"""
-        return self.items.get(item_id, f"Unknown({item_id})")
+        return self.items.get(item_id, f"未知物品({item_id})")
 
 
 class DaveSaveEditor:
@@ -241,7 +242,7 @@ class DaveSaveEditor:
             self.file_path = filepath
             return True
         except Exception as e:
-            print(f"Load save error: {e}")
+            print(f"加载存档失败: {e}")
             return False
     
     def create_backup(self):
@@ -275,7 +276,7 @@ class DaveSaveEditor:
             
             return True
         except Exception as e:
-            print(f"Save error: {e}")
+            print(f"保存失败: {e}")
             return False
     
     def get_current_values(self):
@@ -351,7 +352,7 @@ class DaveSaveEditor:
             if "ingredientsID" in item:
                 ing_id = item["ingredientsID"]
                 count = item.get("count", 0)
-                name = self.item_db.get_name(ing_id) if self.item_db else f"Item{ing_id}"
+                name = self.item_db.get_name(ing_id) if self.item_db else f"食材{ing_id}"
                 ingredients.append({
                     'id': ing_id,
                     'name': name,
@@ -379,12 +380,12 @@ class DaveSaveEditor:
     def search_and_modify_item(self, keyword, new_value):
         """搜索并修改物品"""
         if not self.save_data or not self.item_db:
-            return False, "No save or database loaded"
+            return False, "未加载存档或数据库"
         
         results = self.item_db.search(keyword)
         
         if not results:
-            return False, f"Not found: '{keyword}'"
+            return False, f"未找到 '{keyword}'"
         
         if len(results) == 1:
             item_id, item_name = results[0]
@@ -438,9 +439,9 @@ class DaveSaveEditor:
 class FileChooserPopup(Popup):
     """文件选择弹窗"""
     
-    def __init__(self, callback, use_english=False, **kwargs):
+    def __init__(self, callback, **kwargs):
         super().__init__(**kwargs)
-        self.title = 'Select Save File (.sav)' if use_english else '选择存档文件 (.sav)'
+        self.title = '选择存档文件 (.sav)'
         self.size_hint = (0.9, 0.9)
         self.callback = callback
         
@@ -461,13 +462,10 @@ class FileChooserPopup(Popup):
         
         btn_layout = BoxLayout(size_hint_y=0.1, spacing=10)
         
-        cancel_text = 'Cancel' if use_english else '取消'
-        select_text = 'Select' if use_english else '选择'
-        
-        btn_cancel = Button(text=cancel_text)
+        btn_cancel = Button(text='取消')
         btn_cancel.bind(on_press=self.dismiss)
         
-        btn_select = Button(text=select_text, background_color=(0.2, 0.8, 0.2, 1))
+        btn_select = Button(text='选择', background_color=(0.2, 0.8, 0.2, 1))
         btn_select.bind(on_press=self.on_select)
         
         btn_layout.add_widget(btn_cancel)
@@ -485,7 +483,7 @@ class FileChooserPopup(Popup):
 class MessagePopup(Popup):
     """消息提示弹窗"""
     
-    def __init__(self, title, message, use_english=False, **kwargs):
+    def __init__(self, title, message, **kwargs):
         super().__init__(**kwargs)
         self.title = title
         self.size_hint = (0.8, 0.4)
@@ -499,8 +497,7 @@ class MessagePopup(Popup):
             halign='center'
         ))
         
-        ok_text = 'OK' if use_english else '确定'
-        btn_ok = Button(text=ok_text, size_hint_y=0.3)
+        btn_ok = Button(text='确定', size_hint_y=0.3)
         btn_ok.bind(on_press=self.dismiss)
         layout.add_widget(btn_ok)
         
@@ -510,7 +507,7 @@ class MessagePopup(Popup):
 class NumberInputPopup(Popup):
     """数字输入弹窗"""
     
-    def __init__(self, title, hint, max_val, callback, use_english=False, **kwargs):
+    def __init__(self, title, hint, max_val, callback, **kwargs):
         super().__init__(**kwargs)
         self.title = title
         self.size_hint = (0.8, 0.4)
@@ -529,13 +526,10 @@ class NumberInputPopup(Popup):
         
         btn_layout = BoxLayout(size_hint_y=0.4, spacing=10)
         
-        cancel_text = 'Cancel' if use_english else '取消'
-        ok_text = 'OK' if use_english else '确定'
-        
-        btn_cancel = Button(text=cancel_text)
+        btn_cancel = Button(text='取消')
         btn_cancel.bind(on_press=self.dismiss)
         
-        btn_ok = Button(text=ok_text, background_color=(0.2, 0.8, 0.2, 1))
+        btn_ok = Button(text='确定', background_color=(0.2, 0.8, 0.2, 1))
         btn_ok.bind(on_press=self.on_confirm)
         
         btn_layout.add_widget(btn_cancel)
@@ -560,10 +554,9 @@ class NumberInputPopup(Popup):
 class SearchPopup(Popup):
     """搜索物品弹窗"""
     
-    def __init__(self, editor, callback, use_english=False, **kwargs):
+    def __init__(self, editor, callback, **kwargs):
         super().__init__(**kwargs)
-        self.use_english = use_english
-        self.title = 'Search Items' if use_english else '搜索物品'
+        self.title = '搜索物品'
         self.size_hint = (0.9, 0.8)
         self.editor = editor
         self.callback = callback
@@ -571,13 +564,12 @@ class SearchPopup(Popup):
         layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
         
         search_layout = BoxLayout(size_hint_y=0.1, spacing=10)
-        hint_text = 'Enter item ID or name' if use_english else '输入物品ID或名称'
         self.search_input = TextInput(
-            hint_text=hint_text,
+            hint_text='输入物品ID或名称',
             multiline=False,
             font_size='16sp'
         )
-        search_btn = Button(text='Search' if use_english else '搜索', size_hint_x=0.2)
+        search_btn = Button(text='搜索', size_hint_x=0.2)
         search_btn.bind(on_press=self.do_search)
         
         search_layout.add_widget(self.search_input)
@@ -591,8 +583,7 @@ class SearchPopup(Popup):
         scroll.add_widget(self.results_layout)
         layout.add_widget(scroll)
         
-        close_text = 'Close' if use_english else '关闭'
-        btn_close = Button(text=close_text, size_hint_y=0.1)
+        btn_close = Button(text='关闭', size_hint_y=0.1)
         btn_close.bind(on_press=self.dismiss)
         layout.add_widget(btn_close)
         
@@ -608,9 +599,8 @@ class SearchPopup(Popup):
         results = self.editor.item_db.search(keyword)
         
         if not results:
-            no_result_text = 'No items found' if self.use_english else '未找到相关物品'
             self.results_layout.add_widget(Label(
-                text=no_result_text,
+                text='未找到相关物品',
                 size_hint_y=None,
                 height=40
             ))
@@ -628,9 +618,8 @@ class SearchPopup(Popup):
             self.results_layout.add_widget(btn)
         
         if len(results) > 20:
-            more_text = f'...and {len(results)-20} more' if self.use_english else f'...还有 {len(results)-20} 个结果'
             self.results_layout.add_widget(Label(
-                text=more_text,
+                text=f'...还有 {len(results)-20} 个结果',
                 size_hint_y=None,
                 height=30
             ))
@@ -641,19 +630,15 @@ class SearchPopup(Popup):
         def set_value(value):
             success, msg = self.editor._modify_item_by_id(item_id, item_name, value)
             if success:
-                modified_text = f'Modified {item_name} to {value}' if self.use_english else f'已修改 {item_name} 数量为 {value}'
-                self.callback(modified_text)
+                self.callback(f'已修改 {item_name} 数量为 {value}')
             else:
-                failed_text = 'Modification failed' if self.use_english else '修改失败'
-                self.callback(failed_text)
+                self.callback(f'修改失败')
         
-        hint_text = f'Enter quantity (0-{SAVE_MAX_ITEM})' if self.use_english else f'输入数量 (0-{SAVE_MAX_ITEM})'
         popup = NumberInputPopup(
-            title=f'Modify {item_name}' if self.use_english else f'修改 {item_name}',
-            hint=hint_text,
+            title=f'修改 {item_name}',
+            hint=f'输入数量 (0-{SAVE_MAX_ITEM})',
             max_val=SAVE_MAX_ITEM,
-            callback=set_value,
-            use_english=self.use_english
+            callback=set_value
         )
         popup.open()
         self.dismiss()
@@ -670,14 +655,9 @@ class MainScreen(BoxLayout):
         
         self.editor = DaveSaveEditor()
         
-        # 检测是否使用英文界面
-        app = App.get_running_app()
-        self.use_english = getattr(app, 'use_english_labels', False)
-        
         # 提前创建 log_label
-        init_log = 'Ready' if self.use_english else '就绪'
         self.log_label = Label(
-            text=init_log,
+            text='就绪',
             font_size='12sp',
             size_hint_y=0.08,
             color=(0.6, 0.6, 0.6, 1),
@@ -686,18 +666,16 @@ class MainScreen(BoxLayout):
         )
         
         # 标题
-        title_text = 'Dave the Diver Save Editor' if self.use_english else '🌊 Dave the Diver 存档修改器'
         self.add_widget(Label(
-            text=title_text,
+            text='🌊 Dave the Diver 存档修改器',
             font_size='24sp',
             size_hint_y=0.08,
             bold=True
         ))
         
         # 状态栏
-        status_text = 'No save loaded' if self.use_english else '未加载存档'
         self.status_label = Label(
-            text=status_text,
+            text='未加载存档',
             font_size='14sp',
             size_hint_y=0.06,
             color=(0.8, 0.8, 0.8, 1)
@@ -710,23 +688,19 @@ class MainScreen(BoxLayout):
         # 标签页
         self.tabs = TabbedPanel(do_default_tab=False, size_hint_y=0.86)
         
-        tab_file_text = 'File' if self.use_english else '📂 存档'
-        tab_file = TabbedPanelHeader(text=tab_file_text)
+        tab_file = TabbedPanelHeader(text='📂 存档')
         tab_file.content = self.create_file_tab()
         self.tabs.add_widget(tab_file)
         
-        tab_currency_text = 'Currency' if self.use_english else '💰 货币'
-        tab_currency = TabbedPanelHeader(text=tab_currency_text)
+        tab_currency = TabbedPanelHeader(text='💰 货币')
         tab_currency.content = self.create_currency_tab()
         self.tabs.add_widget(tab_currency)
         
-        tab_ingredients_text = 'Ingredients' if self.use_english else '🍖 食材'
-        tab_ingredients = TabbedPanelHeader(text=tab_ingredients_text)
+        tab_ingredients = TabbedPanelHeader(text='🍖 食材')
         tab_ingredients.content = self.create_ingredients_tab()
         self.tabs.add_widget(tab_ingredients)
         
-        tab_items_text = 'Items' if self.use_english else '📦 物品'
-        tab_items = TabbedPanelHeader(text=tab_items_text)
+        tab_items = TabbedPanelHeader(text='📦 物品')
         tab_items.content = self.create_items_tab()
         self.tabs.add_widget(tab_items)
         
@@ -754,17 +728,12 @@ class MainScreen(BoxLayout):
         for path in possible_paths:
             if os.path.exists(path):
                 if self.editor.load_item_database(path):
-                    if self.use_english:
-                        msg = f'Database loaded: {os.path.basename(path)}'
-                    else:
-                        msg = f'已加载物品数据库: {os.path.basename(path)}'
-                    self.log(msg)
+                    self.log(f'已加载物品数据库: {os.path.basename(path)}')
                     loaded = True
                     break
         
         if not loaded:
-            msg = 'Warning: Database not found' if self.use_english else '警告: 未找到物品数据库'
-            self.log(msg)
+            self.log('警告: 未找到物品数据库')
     
     def log(self, message):
         """添加日志"""
@@ -775,29 +744,26 @@ class MainScreen(BoxLayout):
     
     def show_message(self, title, message):
         """显示消息弹窗"""
-        popup = MessagePopup(title, message, use_english=self.use_english)
+        popup = MessagePopup(title, message)
         popup.open()
     
     def create_file_tab(self):
         """创建存档管理标签"""
         layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
         
-        file_info_text = 'Please select save file' if self.use_english else '请选择存档文件'
         self.file_info_label = Label(
-            text=file_info_text,
+            text='请选择存档文件',
             font_size='16sp',
             size_hint_y=0.3
         )
         layout.add_widget(self.file_info_label)
         
-        btn_load_text = 'Select Save File' if self.use_english else '📂 选择存档文件'
-        btn_load = Button(text=btn_load_text, font_size='18sp', size_hint_y=0.2)
+        btn_load = Button(text='📂 选择存档文件', font_size='18sp', size_hint_y=0.2)
         btn_load.bind(on_press=self.show_file_chooser)
         layout.add_widget(btn_load)
         
-        btn_save_text = 'Save Changes' if self.use_english else '💾 保存修改'
         btn_save = Button(
-            text=btn_save_text,
+            text='💾 保存修改',
             font_size='18sp',
             size_hint_y=0.2,
             background_color=(0.2, 0.7, 0.3, 1)
@@ -805,8 +771,7 @@ class MainScreen(BoxLayout):
         btn_save.bind(on_press=self.save_file)
         layout.add_widget(btn_save)
         
-        btn_export_text = 'Export JSON' if self.use_english else '📤 导出JSON'
-        btn_export = Button(text=btn_export_text, font_size='16sp', size_hint_y=0.15)
+        btn_export = Button(text='📤 导出JSON', font_size='16sp', size_hint_y=0.15)
         btn_export.bind(on_press=self.export_json)
         layout.add_widget(btn_export)
         
@@ -817,23 +782,12 @@ class MainScreen(BoxLayout):
         layout = GridLayout(cols=2, padding=20, spacing=15)
         
         self.currency_labels = {}
-        
-        if self.use_english:
-            currencies = [
-                ('gold', 'Gold', SAVE_MAX_CURRENCY),
-                ('bei', 'Bei', SAVE_MAX_CURRENCY),
-                ('flame', 'Flame', SAVE_MAX_FLAME),
-                ('follower', 'Followers', SAVE_MAX_FOLLOWER)
-            ]
-            modify_text = 'Modify'
-        else:
-            currencies = [
-                ('gold', '金币', SAVE_MAX_CURRENCY),
-                ('bei', '贝币', SAVE_MAX_CURRENCY),
-                ('flame', '工匠之火', SAVE_MAX_FLAME),
-                ('follower', '粉丝数', SAVE_MAX_FOLLOWER)
-            ]
-            modify_text = '修改'
+        currencies = [
+            ('gold', '💰 金币', SAVE_MAX_CURRENCY),
+            ('bei', '🐚 贝币', SAVE_MAX_CURRENCY),
+            ('flame', '🔥 工匠之火', SAVE_MAX_FLAME),
+            ('follower', '👥 粉丝数', SAVE_MAX_FOLLOWER)
+        ]
         
         for key, name, max_val in currencies:
             label = Label(
@@ -845,7 +799,7 @@ class MainScreen(BoxLayout):
             self.currency_labels[key] = label
             layout.add_widget(label)
             
-            btn = Button(text=modify_text, size_hint_y=None, height=50)
+            btn = Button(text='修改', size_hint_y=None, height=50)
             btn.bind(on_press=lambda inst, k=key, n=name, m=max_val: self.modify_currency(k, n, m))
             layout.add_widget(btn)
         
@@ -857,12 +811,10 @@ class MainScreen(BoxLayout):
         
         btn_layout = BoxLayout(size_hint_y=0.15, spacing=10)
         
-        refresh_text = 'Refresh' if self.use_english else '🔄 刷新列表'
-        btn_refresh = Button(text=refresh_text)
+        btn_refresh = Button(text='🔄 刷新列表')
         btn_refresh.bind(on_press=self.refresh_ingredients)
         
-        set_all_text = 'Set All' if self.use_english else '⚡ 统一设置数量'
-        btn_set_all = Button(text=set_all_text)
+        btn_set_all = Button(text='⚡ 统一设置数量')
         btn_set_all.bind(on_press=self.set_all_ingredients)
         
         btn_layout.add_widget(btn_refresh)
@@ -882,14 +834,12 @@ class MainScreen(BoxLayout):
         """创建物品搜索标签"""
         layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
         
-        search_text = 'Search and Modify Items' if self.use_english else '🔍 搜索并修改物品'
-        btn_search = Button(text=search_text, font_size='20sp', size_hint_y=0.3)
+        btn_search = Button(text='🔍 搜索并修改物品', font_size='20sp', size_hint_y=0.3)
         btn_search.bind(on_press=self.show_search_popup)
         layout.add_widget(btn_search)
         
-        hint_text = 'Search by ID or name\nCan add new items to save' if self.use_english else '支持按物品ID或名称搜索\n可添加新物品到存档'
         layout.add_widget(Label(
-            text=hint_text,
+            text='支持按物品ID或名称搜索\n可添加新物品到存档',
             font_size='14sp',
             color=(0.6, 0.6, 0.6, 1)
         ))
@@ -900,46 +850,31 @@ class MainScreen(BoxLayout):
         """显示文件选择器"""
         def on_select(path):
             if self.editor.load_save_file(path):
-                if self.use_english:
-                    self.file_info_label.text = f'Loaded: {os.path.basename(path)}'
-                    self.status_label.text = f'Current: {os.path.basename(path)}'
-                    self.log('Save loaded successfully')
-                else:
-                    self.file_info_label.text = f'已加载: {os.path.basename(path)}'
-                    self.status_label.text = f'当前存档: {os.path.basename(path)}'
-                    self.log('存档加载成功')
+                self.file_info_label.text = f'已加载: {os.path.basename(path)}'
+                self.status_label.text = f'当前存档: {os.path.basename(path)}'
                 self.status_label.color = (0.2, 0.8, 0.2, 1)
                 self.update_currency_display()
                 self.refresh_ingredients()
+                self.log('存档加载成功')
             else:
-                error_title = 'Error' if self.use_english else '错误'
-                error_msg = 'Failed to load save' if self.use_english else '加载存档失败'
-                self.show_message(error_title, error_msg)
+                self.show_message('错误', '加载存档失败')
         
-        popup = FileChooserPopup(on_select, use_english=self.use_english)
+        popup = FileChooserPopup(on_select)
         popup.open()
     
     def update_currency_display(self):
         """更新货币显示"""
         values = self.editor.get_current_values()
         if values:
-            if self.use_english:
-                self.currency_labels['gold'].text = f'Gold: {values["gold"]}'
-                self.currency_labels['bei'].text = f'Bei: {values["bei"]}'
-                self.currency_labels['flame'].text = f'Flame: {values["flame"]}'
-                self.currency_labels['follower'].text = f'Followers: {values["follower"]}'
-            else:
-                self.currency_labels['gold'].text = f'金币: {values["gold"]}'
-                self.currency_labels['bei'].text = f'贝币: {values["bei"]}'
-                self.currency_labels['flame'].text = f'工匠之火: {values["flame"]}'
-                self.currency_labels['follower'].text = f'粉丝数: {values["follower"]}'
+            self.currency_labels['gold'].text = f'💰 金币: {values["gold"]}'
+            self.currency_labels['bei'].text = f'🐚 贝币: {values["bei"]}'
+            self.currency_labels['flame'].text = f'🔥 工匠之火: {values["flame"]}'
+            self.currency_labels['follower'].text = f'👥 粉丝数: {values["follower"]}'
     
     def modify_currency(self, key, name, max_val):
         """修改货币"""
         if not self.editor.save_data:
-            error_title = 'Error' if self.use_english else '错误'
-            error_msg = 'Please load save first' if self.use_english else '请先加载存档'
-            self.show_message(error_title, error_msg)
+            self.show_message('错误', '请先加载存档')
             return
         
         def do_modify(value):
@@ -954,18 +889,13 @@ class MainScreen(BoxLayout):
             
             if success:
                 self.update_currency_display()
-                if self.use_english:
-                    self.log(f'{name} modified to {value}')
-                else:
-                    self.log(f'{name} 已修改为 {value}')
+                self.log(f'{name} 已修改为 {value}')
         
-        hint_text = f'Enter value (0-{max_val})' if self.use_english else f'输入数值 (0-{max_val})'
         popup = NumberInputPopup(
-            title=f'Modify {name}' if self.use_english else f'修改 {name}',
-            hint=hint_text,
+            title=f'修改 {name}',
+            hint=f'输入数值 (0-{max_val})',
             max_val=max_val,
-            callback=do_modify,
-            use_english=self.use_english
+            callback=do_modify
         )
         popup.open()
     
@@ -974,14 +904,20 @@ class MainScreen(BoxLayout):
         self.ingredients_layout.clear_widgets()
         
         if not self.editor.save_data:
-            msg = 'Please load save first' if self.use_english else '请先加载存档'
-            self.ingredients_layout.add_widget(Label(text=msg, size_hint_y=None, height=40))
+            self.ingredients_layout.add_widget(Label(
+                text='请先加载存档',
+                size_hint_y=None,
+                height=40
+            ))
             return
         
         ingredients = self.editor.list_ingredients()
         if not ingredients:
-            msg = 'No ingredients data' if self.use_english else '暂无食材数据'
-            self.ingredients_layout.add_widget(Label(text=msg, size_hint_y=None, height=40))
+            self.ingredients_layout.add_widget(Label(
+                text='暂无食材数据',
+                size_hint_y=None,
+                height=40
+            ))
             return
         
         ingredients.sort(key=lambda x: x['count'], reverse=True)
@@ -999,86 +935,64 @@ class MainScreen(BoxLayout):
         """修改单个食材"""
         def do_modify(value):
             if self.editor.set_ingredient_count(key, value):
-                if self.use_english:
-                    self.log(f'{name} modified to {value}')
-                else:
-                    self.log(f'{name} 数量已修改为 {value}')
+                self.log(f'{name} 数量已修改为 {value}')
                 self.refresh_ingredients()
         
-        hint_text = f'Enter quantity (0-{SAVE_MAX_INGREDIENT})' if self.use_english else f'输入数量 (0-{SAVE_MAX_INGREDIENT})'
         popup = NumberInputPopup(
-            title=f'Modify {name}' if self.use_english else f'修改 {name}',
-            hint=hint_text,
+            title=f'修改 {name}',
+            hint=f'输入数量 (0-{SAVE_MAX_INGREDIENT})',
             max_val=SAVE_MAX_INGREDIENT,
-            callback=do_modify,
-            use_english=self.use_english
+            callback=do_modify
         )
         popup.open()
     
     def set_all_ingredients(self, instance):
         """统一设置所有食材"""
         if not self.editor.save_data:
-            error_title = 'Error' if self.use_english else '错误'
-            error_msg = 'Please load save first' if self.use_english else '请先加载存档'
-            self.show_message(error_title, error_msg)
+            self.show_message('错误', '请先加载存档')
             return
         
         def do_modify(value):
             count = self.editor.set_all_ingredients(value)
-            if self.use_english:
-                self.log(f'Set {count} ingredients to {value}')
-            else:
-                self.log(f'已将 {count} 个食材设置为 {value}')
+            self.log(f'已将 {count} 个食材设置为 {value}')
             self.refresh_ingredients()
         
-        hint_text = f'Enter quantity (0-{SAVE_MAX_INGREDIENT})' if self.use_english else f'输入数量 (0-{SAVE_MAX_INGREDIENT})'
         popup = NumberInputPopup(
-            title='Set All Ingredients' if self.use_english else '统一设置食材数量',
-            hint=hint_text,
+            title='统一设置食材数量',
+            hint=f'输入数量 (0-{SAVE_MAX_INGREDIENT})',
             max_val=SAVE_MAX_INGREDIENT,
-            callback=do_modify,
-            use_english=self.use_english
+            callback=do_modify
         )
         popup.open()
     
     def show_search_popup(self, instance):
         """显示搜索弹窗"""
         if not self.editor.save_data:
-            error_title = 'Error' if self.use_english else '错误'
-            error_msg = 'Please load save first' if self.use_english else '请先加载存档'
-            self.show_message(error_title, error_msg)
+            self.show_message('错误', '请先加载存档')
             return
         
         def on_result(message):
             self.log(message)
         
-        popup = SearchPopup(self.editor, on_result, use_english=self.use_english)
+        popup = SearchPopup(self.editor, on_result)
         popup.open()
     
     def save_file(self, instance):
         """保存存档"""
         if not self.editor.save_data:
-            error_title = 'Error' if self.use_english else '错误'
-            error_msg = 'Please load save first' if self.use_english else '请先加载存档'
-            self.show_message(error_title, error_msg)
+            self.show_message('错误', '请先加载存档')
             return
         
         if self.editor.save_save_file():
-            success_title = 'Success' if self.use_english else '成功'
-            success_msg = 'Save saved\nBackup created' if self.use_english else '存档已保存\n备份文件已创建'
-            self.show_message(success_title, success_msg)
-            self.log('Save saved successfully' if self.use_english else '存档保存成功')
+            self.show_message('成功', '存档已保存\n备份文件已创建')
+            self.log('存档保存成功')
         else:
-            error_title = 'Error' if self.use_english else '错误'
-            error_msg = 'Save failed' if self.use_english else '保存失败'
-            self.show_message(error_title, error_msg)
+            self.show_message('错误', '保存失败')
     
     def export_json(self, instance):
         """导出JSON"""
         if not self.editor.save_data:
-            error_title = 'Error' if self.use_english else '错误'
-            error_msg = 'Please load save first' if self.use_english else '请先加载存档'
-            self.show_message(error_title, error_msg)
+            self.show_message('错误', '请先加载存档')
             return
         
         try:
@@ -1090,18 +1004,15 @@ class MainScreen(BoxLayout):
             else:
                 output_dir = os.path.dirname(self.editor.file_path)
             
-            output_path = os.path.join(output_dir, f'{base_name}_export.json' if self.use_english else f'{base_name}_导出.json')
+            output_path = os.path.join(output_dir, f'{base_name}_导出.json')
             
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(self.editor.save_data, f, ensure_ascii=False, indent=2)
             
-            success_title = 'Success' if self.use_english else '成功'
-            success_msg = f'JSON exported to:\n{output_path}'
-            self.show_message(success_title, success_msg)
-            self.log('JSON exported successfully' if self.use_english else 'JSON导出成功')
+            self.show_message('成功', f'JSON已导出到:\n{output_path}')
+            self.log('JSON导出成功')
         except Exception as e:
-            error_title = 'Error' if self.use_english else '错误'
-            self.show_message(error_title, f'Export failed: {str(e)}')
+            self.show_message('错误', f'导出失败: {str(e)}')
 
 
 class DaveSaveEdApp(App):
@@ -1120,49 +1031,68 @@ class DaveSaveEdApp(App):
             except ImportError:
                 pass
         
-        # 设置中文字体
-        self.setup_chinese_font()
+        # 加载中文字体
+        self.load_chinese_font()
         
         Window.clearcolor = (0.12, 0.14, 0.18, 1)
-        self.title = 'Dave the Diver Save Editor'
+        self.title = 'Dave the Diver 存档修改器'
         return MainScreen()
     
-    def setup_chinese_font(self):
-        """配置中文字体支持"""
-        self.use_english_labels = False
-        
-        if platform != 'android':
-            return
-        
-        # Android 系统字体路径
-        system_fonts = [
-            '/system/fonts/NotoSansCJK-Regular.ttc',
-            '/system/fonts/NotoSansSC-Regular.otf',
-            '/system/fonts/SourceHanSansCN-Regular.otf',
-            '/system/fonts/DroidSansFallbackFull.ttf',
-            '/system/fonts/DroidSansFallback.ttf',
+    def load_chinese_font(self):
+        """加载打包的中文字体"""
+        # 字体文件可能的路径（按优先级）
+        font_paths = [
+            # 打包后的路径
+            os.path.join(os.path.dirname(__file__), 'fonts', 'SourceHanSansCN-Regular.otf'),
+            os.path.join(os.path.dirname(__file__), 'fonts', 'NotoSansCJK-Regular.ttc'),
+            os.path.join(os.path.dirname(__file__), 'fonts', 'DroidSansFallback.ttf'),
+            os.path.join(os.path.dirname(__file__), 'fonts', 'msyh.ttf'),
+            os.path.join(os.path.dirname(__file__), 'fonts', 'simhei.ttf'),
+            # 当前目录
+            'fonts/SourceHanSansCN-Regular.otf',
+            'fonts/NotoSansCJK-Regular.ttc',
+            'fonts/DroidSansFallback.ttf',
+            'fonts/msyh.ttf',
+            'fonts/simhei.ttf',
         ]
         
-        font_path = None
-        for f in system_fonts:
-            if os.path.exists(f):
-                font_path = f
-                print(f"[FONT] Found: {font_path}")
-                break
+        font_loaded = False
         
-        if font_path:
-            try:
-                LabelBase.register('Default', font_path)
-                import kivy.core.text
-                kivy.core.text.DEFAULT_FONT = 'Default'
-                print(f"[FONT] Loaded successfully")
-            except Exception as e:
-                print(f"[FONT] Error loading: {e}")
-                font_path = None
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                try:
+                    # 注册字体
+                    LabelBase.register('ChineseFont', font_path)
+                    
+                    # 设置为默认字体
+                    import kivy.core.text
+                    kivy.core.text.DEFAULT_FONT = 'ChineseFont'
+                    
+                    print(f"[FONT] Loaded: {font_path}")
+                    font_loaded = True
+                    break
+                except Exception as e:
+                    print(f"[FONT] Failed to load {font_path}: {e}")
+                    continue
         
-        if not font_path:
-            print("[FONT] No Chinese font found, using English")
-            self.use_english_labels = True
+        if not font_loaded:
+            print("[FONT] No Chinese font found, using system default")
+            # 尝试使用系统字体作为后备
+            if platform == 'android':
+                system_fonts = [
+                    '/system/fonts/NotoSansCJK-Regular.ttc',
+                    '/system/fonts/DroidSansFallbackFull.ttf',
+                ]
+                for sys_font in system_fonts:
+                    if os.path.exists(sys_font):
+                        try:
+                            LabelBase.register('ChineseFont', sys_font)
+                            import kivy.core.text
+                            kivy.core.text.DEFAULT_FONT = 'ChineseFont'
+                            print(f"[FONT] Loaded system font: {sys_font}")
+                            break
+                        except:
+                            pass
 
 
 if __name__ == '__main__':

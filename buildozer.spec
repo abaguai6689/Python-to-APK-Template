@@ -3,7 +3,7 @@ title = DaveSaveEd
 package.name = davesaveed
 package.domain = com.abaguai.tools
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,json
+source.include_exts = py,png,jpg,kv,atlas,json,ttf,otf,ttc
 version = 1.0
 orientation = portrait
 fullscreen = 0
@@ -12,7 +12,7 @@ fullscreen = 0
 requirements = python3,kivy==2.3.0,android,pyjnius
 
 # 入口文件
-source.include_patterns = main.py
+source.include_patterns = main.py,fonts/*.ttf,fonts/*.otf,fonts/*.ttc
 
 # Android 权限
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,MANAGE_EXTERNAL_STORAGE
